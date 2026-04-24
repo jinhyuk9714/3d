@@ -16,7 +16,7 @@ describe('MOON_VISUALS', () => {
 
       expect(visual.texturePath).toBe(`textures/moons/${moon.id}.webp`)
       expect(existsSync(texturePath)).toBe(true)
-      expect(statSync(texturePath).size).toBeGreaterThan(400)
+      expect(statSync(texturePath).size).toBeGreaterThan(1_024)
       expect(visual.textureCredit.length).toBeGreaterThan(6)
       expect(visual.textureSourceUrl).toMatch(/^https:\/\/.+/)
       expect(visual.material.roughness).toBeGreaterThanOrEqual(0)

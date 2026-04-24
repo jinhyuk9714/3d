@@ -7,7 +7,7 @@ test('renders an interactive solar system canvas', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '태양계 관측실' })).toBeVisible()
   await expect(page.getByText('공개 데모')).toBeVisible()
   await expect(page.getByRole('button', { name: '도움말 열기' })).toBeVisible()
-  await expect(page.getByRole('link', { name: '텍스처: NASA/JPL' })).toBeVisible()
+  await expect(page.getByRole('link', { name: '텍스처: NASA/JPL/LRO' })).toBeVisible()
   await expect(page.getByTestId('solar-canvas')).toBeVisible()
   await expect(page.getByText('1일/초')).toBeVisible()
   await expect(page.getByRole('button', { name: '태양 선택' })).toBeVisible()

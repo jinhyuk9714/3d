@@ -10,6 +10,8 @@ import type { MoonVisual } from '../data/moonVisuals'
 import type { PlanetDatum, PlanetId, SolarBodyId } from '../data/planets'
 import { PLANET_VISUALS } from '../data/planetVisuals'
 import type { PlanetAtmosphere, PlanetVisual } from '../data/planetVisuals'
+import { SUN_VISUAL } from '../data/sunVisual'
+import type { SunVisual } from '../data/sunVisual'
 import {
   getCameraPositionAfterTargetShift,
   getMoonDisplayRadius,
@@ -53,6 +55,7 @@ const MOON_PHASES: Record<MoonId, number> = {
 const preserveDrawingBuffer =
   import.meta.env.VITE_PRESERVE_DRAWING_BUFFER === 'true'
 const SUN_DISPLAY_RADIUS = 3.2
+const SUN_ROTATION_PERIOD_DAYS = 27
 const DEFAULT_CAMERA_POSITION = [0, 30, 52] satisfies Vector3Tuple
 
 export function SolarSystemScene({
@@ -94,6 +97,7 @@ export function SolarSystemScene({
         camera={{ position: DEFAULT_CAMERA_POSITION, fov: 48, near: 0.1, far: 220 }}
         dpr={[1, 2]}
         gl={{
+          alpha: false,
           antialias: true,
           powerPreference: 'high-performance',
           preserveDrawingBuffer,
@@ -147,6 +151,7 @@ function SolarSystem({
   return (
     <group>
       <Sun
+        elapsedDays={elapsedDays}
         isSelected={selectedBodyId === 'sun'}
         onSelectBody={onSelectBody}
       />
@@ -168,12 +173,16 @@ function SolarSystem({
 }
 
 function Sun({
+  elapsedDays,
   isSelected,
   onSelectBody,
 }: {
+  elapsedDays: number
   isSelected: boolean
   onSelectBody: (bodyId: SolarBodyId) => void
 }) {
+  const surfaceTexture = usePlanetTexture(SUN_VISUAL)
+  const rotation = (elapsedDays / SUN_ROTATION_PERIOD_DAYS) * Math.PI * 2
   const selectSun = () => onSelectBody('sun')
 
   return (
@@ -183,9 +192,14 @@ function Sun({
           event.stopPropagation()
           selectSun()
         }}
+        rotation={[0, rotation, 0]}
       >
-        <sphereGeometry args={[SUN_DISPLAY_RADIUS, 72, 72]} />
-        <meshBasicMaterial color="#ffd166" />
+        <sphereGeometry args={[SUN_DISPLAY_RADIUS, 96, 96]} />
+        <meshBasicMaterial
+          color={SUN_VISUAL.material.tint}
+          map={surfaceTexture}
+          toneMapped={false}
+        />
       </mesh>
       <mesh
         onClick={(event) => {
@@ -408,7 +422,7 @@ function MoonBody({
   )
 }
 
-function usePlanetTexture(visual: PlanetVisual | MoonVisual) {
+function usePlanetTexture(visual: PlanetVisual | MoonVisual | SunVisual) {
   const texture = useTexture(
     getPublicTextureUrl(visual.texturePath),
     (loadedTexture) => {

@@ -436,11 +436,11 @@ function TextureCredit() {
   return (
     <p className="texture-credit">
       <a
-        href="https://space.jpl.nasa.gov/tmaps/"
+        href="https://github.com/jinhyuk9714/3d/blob/main/public/textures/README.md"
         rel="noreferrer"
         target="_blank"
       >
-        텍스처: NASA/JPL
+        텍스처: NASA/JPL/LRO
       </a>
     </p>
   )

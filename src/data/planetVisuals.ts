@@ -115,8 +115,8 @@ export const PLANET_VISUALS: Record<PlanetId, PlanetVisual> = {
   },
   uranus: {
     texturePath: 'textures/planets/uranus.webp',
-    textureCredit: 'JPL/Caltech',
-    textureSourceUrl: 'https://space.jpl.nasa.gov/tmaps/uranus.html',
+    textureCredit: 'NASA VTAD',
+    textureSourceUrl: 'https://science.nasa.gov/resource/uranus-3d-model/',
     material: {
       tint: '#e2fcff',
       roughness: 0.58,

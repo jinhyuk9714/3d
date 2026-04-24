@@ -23,7 +23,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: '대표 위성' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '달 선택' })).toBeInTheDocument()
     expect(screen.getByText('천체를 선택하세요')).toBeInTheDocument()
-    expect(screen.getByText('텍스처: NASA/JPL')).toBeInTheDocument()
+    expect(screen.getByText('텍스처: NASA/JPL/LRO')).toBeInTheDocument()
   })
 
   it('opens a concise usage guide for public demo visitors', async () => {
