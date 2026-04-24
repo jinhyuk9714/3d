@@ -35,3 +35,15 @@ export function getPlanetPosition(
 
   return [Math.cos(angle) * radius, 0, Math.sin(angle) * radius]
 }
+
+export function getCameraPositionAfterTargetShift(
+  cameraPosition: Readonly<Vector3Tuple>,
+  previousTarget: Readonly<Vector3Tuple>,
+  nextTarget: Readonly<Vector3Tuple>,
+): Vector3Tuple {
+  return [
+    cameraPosition[0] + nextTarget[0] - previousTarget[0],
+    cameraPosition[1] + nextTarget[1] - previousTarget[1],
+    cameraPosition[2] + nextTarget[2] - previousTarget[2],
+  ]
+}

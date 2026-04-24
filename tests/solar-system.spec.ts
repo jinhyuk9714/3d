@@ -66,6 +66,42 @@ test('selects the Sun from the shortcut list', async ({ page }) => {
   await expect(page.getByText('Sun')).toBeVisible()
 })
 
+test('keeps wheel zoom instead of snapping the camera back', async ({ page }) => {
+  const results = []
+
+  for (const deltaY of [-1_600, 1_600]) {
+    await page.goto('/3d/')
+    await page.getByRole('button', { name: '태양 선택' }).click()
+
+    const canvas = page.locator('canvas')
+    await expect(canvas).toBeVisible()
+    await page.waitForTimeout(1_200)
+
+    const box = await canvas.boundingBox()
+    expect(box).not.toBeNull()
+
+    const before = countWarmPixels(await canvas.screenshot())
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+    await page.mouse.wheel(0, deltaY)
+    await page.waitForTimeout(400)
+    const afterWheel = countWarmPixels(await canvas.screenshot())
+    await page.waitForTimeout(1_600)
+    const afterSettled = countWarmPixels(await canvas.screenshot())
+
+    results.push({ afterSettled, afterWheel, before })
+  }
+
+  const persistentZoom = results.find(({ afterSettled, afterWheel, before }) => {
+    const changedEnough = Math.abs(afterWheel - before) > Math.max(20, before * 0.12)
+    const stayedClose =
+      Math.abs(afterSettled - afterWheel) <= Math.max(30, afterWheel * 0.22)
+
+    return changedEnough && stayedClose
+  })
+
+  expect(persistentZoom).toBeTruthy()
+})
+
 function samplePng(buffer: Buffer) {
   const png = parsePng(buffer)
   let litSamples = 0
@@ -89,6 +125,26 @@ function samplePng(buffer: Buffer) {
   }
 
   return { litSamples, maxLuma }
+}
+
+function countWarmPixels(buffer: Buffer) {
+  const png = parsePng(buffer)
+  let warmPixels = 0
+
+  for (let y = 0; y < png.height; y += 2) {
+    for (let x = 0; x < png.width; x += 2) {
+      const index = (y * png.width + x) * png.bytesPerPixel
+      const red = png.pixels[index]
+      const green = png.pixels[index + 1]
+      const blue = png.pixels[index + 2]
+
+      if (red > 160 && green > 80 && blue < 130 && red >= green) {
+        warmPixels += 1
+      }
+    }
+  }
+
+  return warmPixels
 }
 
 function parsePng(buffer: Buffer) {

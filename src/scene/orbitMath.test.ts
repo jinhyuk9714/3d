@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getOrbitalAngle,
+  getCameraPositionAfterTargetShift,
   getPlanetDisplayRadius,
   getPlanetPosition,
   getScaledOrbitRadius,
@@ -30,5 +31,31 @@ describe('orbit math', () => {
     expect(getPlanetPosition(1, 365.25, 365.25)).toEqual(
       getPlanetPosition(1, 365.25, 365.25),
     )
+  })
+
+  it('preserves camera zoom distance while following a moving focus target', () => {
+    const cameraPosition = [10, 5, 10] as const
+    const previousTarget = [0, 0, 0] as const
+    const nextTarget = [2, 0, -1] as const
+
+    const shiftedCamera = getCameraPositionAfterTargetShift(
+      cameraPosition,
+      previousTarget,
+      nextTarget,
+    )
+
+    const distanceBefore = Math.hypot(
+      cameraPosition[0] - previousTarget[0],
+      cameraPosition[1] - previousTarget[1],
+      cameraPosition[2] - previousTarget[2],
+    )
+    const distanceAfter = Math.hypot(
+      shiftedCamera[0] - nextTarget[0],
+      shiftedCamera[1] - nextTarget[1],
+      shiftedCamera[2] - nextTarget[2],
+    )
+
+    expect(shiftedCamera).toEqual([12, 5, 9])
+    expect(distanceAfter).toBeCloseTo(distanceBefore)
   })
 })

@@ -8,6 +8,7 @@ import type { PlanetDatum, PlanetId, SolarBodyId } from '../data/planets'
 import { PLANET_VISUALS } from '../data/planetVisuals'
 import type { PlanetAtmosphere, PlanetVisual } from '../data/planetVisuals'
 import {
+  getCameraPositionAfterTargetShift,
   getPlanetDisplayRadius,
   getPlanetPosition,
   getScaledOrbitRadius,
@@ -34,6 +35,7 @@ const PLANET_PHASES: Record<PlanetId, number> = {
 const preserveDrawingBuffer =
   import.meta.env.VITE_PRESERVE_DRAWING_BUFFER === 'true'
 const SUN_DISPLAY_RADIUS = 3.2
+const DEFAULT_CAMERA_POSITION = [0, 30, 52] satisfies Vector3Tuple
 
 export function SolarSystemScene({
   planets,
@@ -64,7 +66,7 @@ export function SolarSystemScene({
       data-testid="solar-canvas"
     >
       <Canvas
-        camera={{ position: [0, 30, 52], fov: 48, near: 0.1, far: 220 }}
+        camera={{ position: DEFAULT_CAMERA_POSITION, fov: 48, near: 0.1, far: 220 }}
         dpr={[1, 2]}
         gl={{
           antialias: true,
@@ -92,6 +94,7 @@ export function SolarSystemScene({
           selectedBodyId={selectedBodyId}
         />
         <CameraFocus
+          focusKey={selectedBodyId ?? 'default'}
           selectedPosition={selectedPosition}
           selectedRadius={
             selectedBodyId === 'sun'
@@ -379,33 +382,84 @@ function SelectionHalo({ radius }: { radius: number }) {
 }
 
 function CameraFocus({
+  focusKey,
   selectedPosition,
   selectedRadius,
 }: {
+  focusKey: string
   selectedPosition: Vector3Tuple | null
   selectedRadius: number | null
 }) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null)
-  const { camera } = useThree()
+  const hasUserAdjustedCameraRef = useRef(false)
+  const previousFocusKeyRef = useRef<string | null>(null)
+  const { camera, gl } = useThree()
   const defaultTarget = useMemo(() => new THREE.Vector3(0, 0, 0), [])
-  const defaultPosition = useMemo(() => new THREE.Vector3(0, 30, 52), [])
+  const defaultPosition = useMemo(
+    () => new THREE.Vector3(...DEFAULT_CAMERA_POSITION),
+    [],
+  )
+  const fallbackOffset = useMemo(
+    () => new THREE.Vector3(...DEFAULT_CAMERA_POSITION),
+    [],
+  )
+
+  useEffect(() => {
+    const element = gl.domElement
+    const markUserAdjustedCamera = () => {
+      hasUserAdjustedCameraRef.current = true
+    }
+
+    element.addEventListener('wheel', markUserAdjustedCamera, { passive: true })
+    element.addEventListener('pointerdown', markUserAdjustedCamera)
+
+    return () => {
+      element.removeEventListener('wheel', markUserAdjustedCamera)
+      element.removeEventListener('pointerdown', markUserAdjustedCamera)
+    }
+  }, [gl])
 
   useFrame(() => {
+    const controls = controlsRef.current
     const focusTarget = selectedPosition
       ? new THREE.Vector3(...selectedPosition)
       : defaultTarget
     const focusDistance = Math.max((selectedRadius ?? 1) * 7, 7)
-    const cameraTarget = selectedPosition
-      ? new THREE.Vector3(
-          selectedPosition[0] + focusDistance,
-          5 + focusDistance * 0.35,
-          selectedPosition[2] + focusDistance,
-        )
-      : defaultPosition
 
-    camera.position.lerp(cameraTarget, 0.055)
-    controlsRef.current?.target.lerp(focusTarget, 0.08)
-    controlsRef.current?.update()
+    if (previousFocusKeyRef.current !== focusKey) {
+      hasUserAdjustedCameraRef.current = false
+      previousFocusKeyRef.current = focusKey
+    }
+
+    if (!controls) {
+      return
+    }
+
+    const previousTarget = controls.target.clone()
+    controls.target.lerp(focusTarget, 0.08)
+
+    const shiftedCameraPosition = getCameraPositionAfterTargetShift(
+      camera.position.toArray() as Vector3Tuple,
+      previousTarget.toArray() as Vector3Tuple,
+      controls.target.toArray() as Vector3Tuple,
+    )
+    camera.position.set(...shiftedCameraPosition)
+
+    if (!hasUserAdjustedCameraRef.current) {
+      const offset = camera.position.clone().sub(controls.target)
+      const desiredDistance = selectedPosition
+        ? focusDistance
+        : defaultPosition.distanceTo(defaultTarget)
+      const direction =
+        offset.lengthSq() > 0.0001 ? offset.normalize() : fallbackOffset.clone().normalize()
+      const cameraTarget = controls.target
+        .clone()
+        .add(direction.multiplyScalar(desiredDistance))
+
+      camera.position.lerp(cameraTarget, 0.055)
+    }
+
+    controls.update()
   })
 
   return (
@@ -415,6 +469,9 @@ function CameraFocus({
       dampingFactor={0.08}
       maxDistance={95}
       minDistance={7}
+      onStart={() => {
+        hasUserAdjustedCameraRef.current = true
+      }}
     />
   )
 }
