@@ -112,7 +112,11 @@ test('selects representative moons from the shortcut list', async ({ page }) => 
   ).toBeVisible()
 })
 
-test('keeps wheel zoom instead of snapping the camera back', async ({ page }) => {
+test('keeps wheel zoom instead of snapping the camera back', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name === 'mobile-chrome', 'wheel is desktop pointer behavior')
+
   const results = []
 
   for (const deltaY of [-1_600, 1_600]) {
@@ -167,6 +171,21 @@ test('keeps the mobile loading status clear of main UI panels', async ({ page })
   await waitForSceneReady(page)
 })
 
+test('keeps mobile playback responsive while the simulation is running', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chrome', 'mobile performance budget')
+
+  await page.goto('/3d/')
+  await waitForSceneReady(page)
+  await page.waitForTimeout(1_000)
+
+  const playbackSample = await sampleAnimationFrames(page, 4_000)
+
+  expect(playbackSample.fps).toBeGreaterThan(45)
+  expect(playbackSample.frameMsP95).toBeLessThan(45)
+})
+
 async function delayFirstTexture(page: Page) {
   let delayed = false
 
@@ -205,6 +224,46 @@ function boxesOverlap(
     a.y < b.y + b.height &&
     a.y + a.height > b.y
   )
+}
+
+async function sampleAnimationFrames(page: Page, durationMs: number) {
+  return page.evaluate(async (sampleDurationMs) => {
+    const samples: number[] = []
+    let lastTimestamp = 0
+    const startedAt = performance.now()
+
+    await new Promise<void>((resolve) => {
+      function sampleFrame(timestamp: number) {
+        if (lastTimestamp > 0) {
+          samples.push(timestamp - lastTimestamp)
+        }
+
+        lastTimestamp = timestamp
+
+        if (timestamp - startedAt < sampleDurationMs) {
+          requestAnimationFrame(sampleFrame)
+        } else {
+          resolve()
+        }
+      }
+
+      requestAnimationFrame(sampleFrame)
+    })
+
+    samples.sort((a, b) => a - b)
+
+    const durationSeconds = (performance.now() - startedAt) / 1_000
+    const fps = samples.length / durationSeconds
+    const percentileIndex = Math.min(
+      samples.length - 1,
+      Math.floor(samples.length * 0.95),
+    )
+
+    return {
+      fps,
+      frameMsP95: samples[percentileIndex] ?? 0,
+    }
+  }, durationMs)
 }
 
 function samplePng(buffer: Buffer) {

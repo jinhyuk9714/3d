@@ -1,6 +1,7 @@
 import { Html, OrbitControls, Stars, useTexture } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import type { MutableRefObject } from 'react'
 import * as THREE from 'three'
 import type { Vector3Tuple } from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
@@ -25,10 +26,19 @@ import {
 type SolarSystemSceneProps = {
   planets: PlanetDatum[]
   moons: MoonDatum[]
-  elapsedDays: number
+  isPlaying: boolean
+  resetSignal: number
   selectedBodyId: SolarBodyId | null
+  simulationClockRef: SimulationClockRef
+  speedDaysPerSecond: number
   onSelectBody: (bodyId: SolarBodyId) => void
   onSceneReady?: () => void
+}
+
+type SimulationClockRef = {
+  current: {
+    elapsedDays: number
+  }
 }
 
 type SceneQuality = {
@@ -92,19 +102,19 @@ const DESKTOP_SCENE_QUALITY: SceneQuality = {
   showPlanetLabels: true,
 }
 const COMPACT_SCENE_QUALITY: SceneQuality = {
-  dpr: [1, 1.35],
+  dpr: [1, 1],
   isCompact: true,
-  starCount: 1_150,
-  starFactor: 3.1,
-  orbitSegments: 128,
-  moonOrbitSegments: 88,
-  sunSegments: 72,
-  sunHaloSegments: 52,
-  planetSegments: 34,
-  moonSegments: 24,
-  atmosphereSegments: 30,
-  saturnRingSegments: 104,
-  selectionHaloSegments: 64,
+  starCount: 720,
+  starFactor: 2.8,
+  orbitSegments: 96,
+  moonOrbitSegments: 64,
+  sunSegments: 56,
+  sunHaloSegments: 40,
+  planetSegments: 24,
+  moonSegments: 18,
+  atmosphereSegments: 22,
+  saturnRingSegments: 80,
+  selectionHaloSegments: 48,
   showPlanetLabels: false,
 }
 
@@ -154,36 +164,30 @@ function SceneReadyNotifier({
   return null
 }
 
-export function SolarSystemScene({
+function useLatestRef<T>(value: T) {
+  const ref = useRef(value)
+
+  useEffect(() => {
+    ref.current = value
+  }, [value])
+
+  return ref
+}
+
+export const SolarSystemScene = memo(function SolarSystemScene({
   planets,
   moons,
-  elapsedDays,
+  isPlaying,
+  resetSignal,
   selectedBodyId,
+  simulationClockRef,
+  speedDaysPerSecond,
   onSelectBody,
   onSceneReady,
 }: SolarSystemSceneProps) {
   const sceneQuality = useSceneQuality()
-  const selectedPlanet =
-    selectedBodyId === 'sun'
-      ? null
-      : planets.find((planet) => planet.id === selectedBodyId) ?? null
-  const selectedMoon =
-    selectedBodyId === 'sun'
-      ? null
-      : moons.find((moon) => moon.id === selectedBodyId) ?? null
-  const selectedPosition =
-    selectedBodyId === 'sun'
-      ? ([0, 0, 0] satisfies Vector3Tuple)
-      : selectedPlanet
-        ? getPlanetPosition(
-            selectedPlanet.distanceAu,
-            selectedPlanet.orbitPeriodDays,
-            elapsedDays,
-            PLANET_PHASES[selectedPlanet.id],
-          )
-        : selectedMoon
-          ? getMoonWorldPosition(selectedMoon, planets, elapsedDays)
-          : null
+  const focusTargetRef = useRef<Vector3Tuple | null>(null)
+  const focusRadiusRef = useRef<number | null>(null)
 
   return (
     <div
@@ -206,6 +210,12 @@ export function SolarSystemScene({
         <ambientLight intensity={0.34} />
         <pointLight color="#fff3ce" intensity={4.3} position={[0, 0, 0]} />
         <Suspense fallback={null}>
+          <SimulationClockController
+            isPlaying={isPlaying}
+            resetSignal={resetSignal}
+            simulationClockRef={simulationClockRef}
+            speedDaysPerSecond={speedDaysPerSecond}
+          />
           <Stars
             radius={90}
             depth={42}
@@ -216,50 +226,171 @@ export function SolarSystemScene({
             speed={0.18}
           />
           <SolarSystem
-            elapsedDays={elapsedDays}
             moons={moons}
             onSelectBody={onSelectBody}
             planets={planets}
             sceneQuality={sceneQuality}
             selectedBodyId={selectedBodyId}
+            simulationClockRef={simulationClockRef}
+          />
+          <FocusTargetUpdater
+            focusRadiusRef={focusRadiusRef}
+            focusTargetRef={focusTargetRef}
+            moons={moons}
+            planets={planets}
+            selectedBodyId={selectedBodyId}
+            simulationClockRef={simulationClockRef}
           />
           <CameraFocus
             focusKey={selectedBodyId ?? 'default'}
-            selectedPosition={selectedPosition}
-            selectedRadius={
-              selectedBodyId === 'sun'
-                ? SUN_DISPLAY_RADIUS
-                : selectedPlanet
-                  ? getPlanetDisplayRadius(selectedPlanet.diameterKm)
-                  : selectedMoon
-                    ? getMoonDisplayRadius(selectedMoon.diameterKm)
-                    : null
-            }
+            selectedPositionRef={focusTargetRef}
+            selectedRadiusRef={focusRadiusRef}
           />
           <SceneReadyNotifier onSceneReady={onSceneReady} />
         </Suspense>
       </Canvas>
     </div>
   )
+})
+
+function SimulationClockController({
+  isPlaying,
+  resetSignal,
+  simulationClockRef,
+  speedDaysPerSecond,
+}: {
+  isPlaying: boolean
+  resetSignal: number
+  simulationClockRef: SimulationClockRef
+  speedDaysPerSecond: number
+}) {
+  const isPlayingRef = useLatestRef(isPlaying)
+  const speedDaysPerSecondRef = useLatestRef(speedDaysPerSecond)
+
+  useEffect(() => {
+    simulationClockRef.current.elapsedDays = 0
+  }, [resetSignal, simulationClockRef])
+
+  useFrame((_, deltaSeconds) => {
+    if (!isPlayingRef.current) {
+      return
+    }
+
+    simulationClockRef.current.elapsedDays +=
+      deltaSeconds * speedDaysPerSecondRef.current
+  }, -100)
+
+  return null
+}
+
+function FocusTargetUpdater({
+  focusRadiusRef,
+  focusTargetRef,
+  moons,
+  planets,
+  selectedBodyId,
+  simulationClockRef,
+}: {
+  focusRadiusRef: MutableRefObject<number | null>
+  focusTargetRef: MutableRefObject<Vector3Tuple | null>
+  moons: MoonDatum[]
+  planets: PlanetDatum[]
+  selectedBodyId: SolarBodyId | null
+  simulationClockRef: SimulationClockRef
+}) {
+  const selectedBodyIdRef = useLatestRef(selectedBodyId)
+
+  useFrame(() => {
+    const focus = getSelectedBodyFocus(
+      selectedBodyIdRef.current,
+      planets,
+      moons,
+      simulationClockRef.current.elapsedDays,
+    )
+
+    focusTargetRef.current = focus.position
+    focusRadiusRef.current = focus.radius
+  }, -90)
+
+  return null
+}
+
+function getSelectedBodyFocus(
+  selectedBodyId: SolarBodyId | null,
+  planets: PlanetDatum[],
+  moons: MoonDatum[],
+  elapsedDays: number,
+) {
+  if (selectedBodyId === 'sun') {
+    return {
+      position: [0, 0, 0] satisfies Vector3Tuple,
+      radius: SUN_DISPLAY_RADIUS,
+    }
+  }
+
+  const selectedPlanet = planets.find((planet) => planet.id === selectedBodyId)
+
+  if (selectedPlanet) {
+    return {
+      position: getPlanetPosition(
+        selectedPlanet.distanceAu,
+        selectedPlanet.orbitPeriodDays,
+        elapsedDays,
+        PLANET_PHASES[selectedPlanet.id],
+      ),
+      radius: getPlanetDisplayRadius(selectedPlanet.diameterKm),
+    }
+  }
+
+  const selectedMoon = moons.find((moon) => moon.id === selectedBodyId)
+
+  if (selectedMoon) {
+    return {
+      position: getMoonWorldPosition(selectedMoon, planets, elapsedDays),
+      radius: getMoonDisplayRadius(selectedMoon.diameterKm),
+    }
+  }
+
+  return {
+    position: null,
+    radius: null,
+  }
 }
 
 function SolarSystem({
   planets,
   moons,
-  elapsedDays,
   selectedBodyId,
   onSelectBody,
   sceneQuality,
-}: Omit<SolarSystemSceneProps, 'onSceneReady'> & {
+  simulationClockRef,
+}: Omit<
+  SolarSystemSceneProps,
+  'isPlaying' | 'onSceneReady' | 'resetSignal' | 'speedDaysPerSecond'
+> & {
   sceneQuality: SceneQuality
 }) {
+  const moonsByPlanetId = useMemo(() => {
+    const groupedMoons = new Map<PlanetId, MoonDatum[]>()
+
+    for (const planet of planets) {
+      groupedMoons.set(planet.id, [])
+    }
+
+    for (const moon of moons) {
+      groupedMoons.get(moon.parentPlanetId)?.push(moon)
+    }
+
+    return groupedMoons
+  }, [moons, planets])
+
   return (
     <group>
       <Sun
-        elapsedDays={elapsedDays}
         isSelected={selectedBodyId === 'sun'}
         onSelectBody={onSelectBody}
         sceneQuality={sceneQuality}
+        simulationClockRef={simulationClockRef}
       />
       {planets.map((planet) => (
         <group key={planet.id}>
@@ -268,13 +399,13 @@ function SolarSystem({
             segments={sceneQuality.orbitSegments}
           />
           <PlanetBody
-            elapsedDays={elapsedDays}
             isSelected={planet.id === selectedBodyId}
-            moons={moons.filter((moon) => moon.parentPlanetId === planet.id)}
+            moons={moonsByPlanetId.get(planet.id) ?? []}
             onSelectBody={onSelectBody}
             planet={planet}
             sceneQuality={sceneQuality}
             selectedBodyId={selectedBodyId}
+            simulationClockRef={simulationClockRef}
           />
         </group>
       ))}
@@ -283,28 +414,39 @@ function SolarSystem({
 }
 
 function Sun({
-  elapsedDays,
   isSelected,
   onSelectBody,
   sceneQuality,
+  simulationClockRef,
 }: {
-  elapsedDays: number
   isSelected: boolean
   onSelectBody: (bodyId: SolarBodyId) => void
   sceneQuality: SceneQuality
+  simulationClockRef: SimulationClockRef
 }) {
   const surfaceTexture = usePlanetTexture(SUN_VISUAL)
-  const rotation = (elapsedDays / SUN_ROTATION_PERIOD_DAYS) * Math.PI * 2
+  const sunMeshRef = useRef<THREE.Mesh | null>(null)
   const selectSun = () => onSelectBody('sun')
+
+  useFrame(() => {
+    if (!sunMeshRef.current) {
+      return
+    }
+
+    sunMeshRef.current.rotation.y =
+      (simulationClockRef.current.elapsedDays / SUN_ROTATION_PERIOD_DAYS) *
+      Math.PI *
+      2
+  })
 
   return (
     <group>
       <mesh
+        ref={sunMeshRef}
         onClick={(event) => {
           event.stopPropagation()
           selectSun()
         }}
-        rotation={[0, rotation, 0]}
       >
         <sphereGeometry
           args={[SUN_DISPLAY_RADIUS, sceneQuality.sunSegments, sceneQuality.sunSegments]}
@@ -372,42 +514,64 @@ function OrbitRing({
 
 function PlanetBody({
   planet,
-  elapsedDays,
   isSelected,
   moons,
   onSelectBody,
   sceneQuality,
   selectedBodyId,
+  simulationClockRef,
 }: {
   planet: PlanetDatum
-  elapsedDays: number
   isSelected: boolean
   moons: MoonDatum[]
   onSelectBody: (bodyId: SolarBodyId) => void
   sceneQuality: SceneQuality
   selectedBodyId: SolarBodyId | null
+  simulationClockRef: SimulationClockRef
 }) {
+  const planetGroupRef = useRef<THREE.Group | null>(null)
+  const planetMeshRef = useRef<THREE.Mesh | null>(null)
   const radius = getPlanetDisplayRadius(planet.diameterKm)
   const visual = PLANET_VISUALS[planet.id]
   const surfaceTexture = usePlanetTexture(visual)
-  const position = getPlanetPosition(
-    planet.distanceAu,
-    planet.orbitPeriodDays,
-    elapsedDays,
-    PLANET_PHASES[planet.id],
+  const initialPosition = useMemo(
+    () =>
+      getPlanetPosition(
+        planet.distanceAu,
+        planet.orbitPeriodDays,
+        0,
+        PLANET_PHASES[planet.id],
+      ),
+    [planet.distanceAu, planet.id, planet.orbitPeriodDays],
   )
-  const rotation = (elapsedDays / Math.abs(planet.rotationPeriodHours / 24)) * 0.5
   const axialTiltRad = THREE.MathUtils.degToRad(planet.axialTiltDeg)
 
+  useFrame(() => {
+    const elapsedDays = simulationClockRef.current.elapsedDays
+    const position = getPlanetPosition(
+      planet.distanceAu,
+      planet.orbitPeriodDays,
+      elapsedDays,
+      PLANET_PHASES[planet.id],
+    )
+
+    planetGroupRef.current?.position.set(...position)
+
+    if (planetMeshRef.current) {
+      planetMeshRef.current.rotation.y =
+        (elapsedDays / Math.abs(planet.rotationPeriodHours / 24)) * 0.5
+    }
+  })
+
   return (
-    <group position={position}>
+    <group ref={planetGroupRef} position={initialPosition}>
       <group rotation={[0, 0, axialTiltRad]}>
         <mesh
+          ref={planetMeshRef}
           onClick={(event) => {
             event.stopPropagation()
             onSelectBody(planet.id)
           }}
-          rotation={[0, rotation, 0]}
         >
           <sphereGeometry
             args={[radius, sceneQuality.planetSegments, sceneQuality.planetSegments]}
@@ -459,12 +623,12 @@ function PlanetBody({
             segments={sceneQuality.moonOrbitSegments}
           />
           <MoonBody
-            elapsedDays={elapsedDays}
             isSelected={moon.id === selectedBodyId}
             moon={moon}
             onSelectBody={onSelectBody}
             parentRadius={radius}
             sceneQuality={sceneQuality}
+            simulationClockRef={simulationClockRef}
           />
         </group>
       ))}
@@ -503,41 +667,71 @@ function MoonOrbitRing({
 
 function MoonBody({
   moon,
-  elapsedDays,
   isSelected,
   onSelectBody,
   parentRadius,
   sceneQuality,
+  simulationClockRef,
 }: {
   moon: MoonDatum
-  elapsedDays: number
   isSelected: boolean
   onSelectBody: (bodyId: SolarBodyId) => void
   parentRadius: number
   sceneQuality: SceneQuality
+  simulationClockRef: SimulationClockRef
 }) {
+  const moonGroupRef = useRef<THREE.Group | null>(null)
+  const moonMeshRef = useRef<THREE.Mesh | null>(null)
   const radius = getMoonDisplayRadius(moon.diameterKm)
   const visual = MOON_VISUALS[moon.id]
   const surfaceTexture = usePlanetTexture(visual)
-  const position = getMoonPosition(
-    [0, 0, 0],
-    moon.orbitRadiusKm,
-    moon.orbitPeriodDays,
-    elapsedDays,
-    MOON_PHASES[moon.id],
-    moon.orbitDirection,
-    parentRadius,
+  const initialPosition = useMemo(
+    () =>
+      getMoonPosition(
+        [0, 0, 0],
+        moon.orbitRadiusKm,
+        moon.orbitPeriodDays,
+        0,
+        MOON_PHASES[moon.id],
+        moon.orbitDirection,
+        parentRadius,
+      ),
+    [
+      moon.id,
+      moon.orbitDirection,
+      moon.orbitPeriodDays,
+      moon.orbitRadiusKm,
+      parentRadius,
+    ],
   )
-  const rotation = (elapsedDays / moon.orbitPeriodDays) * 0.42
+
+  useFrame(() => {
+    const elapsedDays = simulationClockRef.current.elapsedDays
+    const position = getMoonPosition(
+      [0, 0, 0],
+      moon.orbitRadiusKm,
+      moon.orbitPeriodDays,
+      elapsedDays,
+      MOON_PHASES[moon.id],
+      moon.orbitDirection,
+      parentRadius,
+    )
+
+    moonGroupRef.current?.position.set(...position)
+
+    if (moonMeshRef.current) {
+      moonMeshRef.current.rotation.y = (elapsedDays / moon.orbitPeriodDays) * 0.42
+    }
+  })
 
   return (
-    <group position={position}>
+    <group ref={moonGroupRef} position={initialPosition}>
       <mesh
+        ref={moonMeshRef}
         onClick={(event) => {
           event.stopPropagation()
           onSelectBody(moon.id)
         }}
-        rotation={[0, rotation, 0]}
       >
         <sphereGeometry
           args={[radius, sceneQuality.moonSegments, sceneQuality.moonSegments]}
@@ -755,12 +949,12 @@ function getMoonWorldPosition(
 
 function CameraFocus({
   focusKey,
-  selectedPosition,
-  selectedRadius,
+  selectedPositionRef,
+  selectedRadiusRef,
 }: {
   focusKey: string
-  selectedPosition: Vector3Tuple | null
-  selectedRadius: number | null
+  selectedPositionRef: MutableRefObject<Vector3Tuple | null>
+  selectedRadiusRef: MutableRefObject<number | null>
 }) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null)
   const hasUserAdjustedCameraRef = useRef(false)
@@ -793,6 +987,8 @@ function CameraFocus({
 
   useFrame(() => {
     const controls = controlsRef.current
+    const selectedPosition = selectedPositionRef.current
+    const selectedRadius = selectedRadiusRef.current
     const focusTarget = selectedPosition
       ? new THREE.Vector3(...selectedPosition)
       : defaultTarget

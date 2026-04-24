@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
@@ -20,7 +21,7 @@ type SimulationState = {
   isPlaying: boolean
   speedDaysPerSecond: number
   selectedBodyId: SolarBodyId | null
-  elapsedDays: number
+  resetSignal: number
 }
 
 type WebGLSupportState = 'supported' | 'unsupported'
@@ -29,8 +30,10 @@ const DEFAULT_SIMULATION: SimulationState = {
   isPlaying: true,
   speedDaysPerSecond: 1,
   selectedBodyId: null,
-  elapsedDays: 0,
+  resetSignal: 0,
 }
+const DEFAULT_ELAPSED_DAYS = 0
+const MISSION_TIME_DISPLAY_INTERVAL_MS = 500
 
 const SUN_DETAILS = {
   nameKo: '태양',
@@ -102,6 +105,9 @@ function detectWebGLSupport() {
 function App() {
   const [simulation, setSimulation] =
     useState<SimulationState>(DEFAULT_SIMULATION)
+  const simulationClockRef = useRef({ elapsedDays: DEFAULT_ELAPSED_DAYS })
+  const [displayElapsedDays, setDisplayElapsedDays] =
+    useState(DEFAULT_ELAPSED_DAYS)
   const [isGuideOpen, setIsGuideOpen] = useState(false)
   const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false)
   const [webGLSupport] = useState<WebGLSupportState>(
@@ -122,25 +128,22 @@ function App() {
   )
 
   useEffect(() => {
-    if (!simulation.isPlaying) {
-      return
-    }
-
     let previousTime = performance.now()
     const intervalId = window.setInterval(() => {
       const now = performance.now()
       const elapsedSeconds = (now - previousTime) / 1_000
       previousTime = now
 
-      setSimulation((current) => ({
-        ...current,
-        elapsedDays:
-          current.elapsedDays + elapsedSeconds * current.speedDaysPerSecond,
-      }))
-    }, 50)
+      if (isTestMode && simulation.isPlaying) {
+        simulationClockRef.current.elapsedDays +=
+          elapsedSeconds * simulation.speedDaysPerSecond
+      }
+
+      setDisplayElapsedDays(simulationClockRef.current.elapsedDays)
+    }, MISSION_TIME_DISPLAY_INTERVAL_MS)
 
     return () => window.clearInterval(intervalId)
-  }, [simulation.isPlaying])
+  }, [simulation.isPlaying, simulation.speedDaysPerSecond])
 
   const selectPlanet = (planetId: PlanetId) => {
     setSimulation((current) => ({ ...current, selectedBodyId: planetId }))
@@ -163,7 +166,12 @@ function App() {
   }
 
   const resetSimulation = () => {
-    setSimulation((current) => ({ ...current, elapsedDays: 0 }))
+    simulationClockRef.current.elapsedDays = DEFAULT_ELAPSED_DAYS
+    setDisplayElapsedDays(DEFAULT_ELAPSED_DAYS)
+    setSimulation((current) => ({
+      ...current,
+      resetSignal: current.resetSignal + 1,
+    }))
   }
   const handleSceneReady = useCallback(() => {
     setIsSceneReady(true)
@@ -173,6 +181,12 @@ function App() {
   }, [])
   const handleReload = useCallback(() => {
     window.location.reload()
+  }, [])
+  const handleSelectBody = useCallback((bodyId: SolarBodyId) => {
+    setSimulation((current) => ({
+      ...current,
+      selectedBodyId: bodyId,
+    }))
   }, [])
   const hasSceneError =
     webGLSupport === 'unsupported' ||
@@ -212,17 +226,15 @@ function App() {
           >
             <Suspense fallback={canvasFallback}>
               <SolarSystemScene
-                elapsedDays={simulation.elapsedDays}
+                isPlaying={simulation.isPlaying}
                 onSceneReady={handleSceneReady}
-                onSelectBody={(bodyId) =>
-                  setSimulation((current) => ({
-                    ...current,
-                    selectedBodyId: bodyId,
-                  }))
-                }
+                onSelectBody={handleSelectBody}
                 moons={MOONS}
                 planets={PLANETS}
+                resetSignal={simulation.resetSignal}
                 selectedBodyId={simulation.selectedBodyId}
+                simulationClockRef={simulationClockRef}
+                speedDaysPerSecond={simulation.speedDaysPerSecond}
               />
             </Suspense>
           </SceneErrorBoundary>
@@ -259,7 +271,7 @@ function App() {
             </button>
           </div>
           <div className="mission-time" aria-label="현재 시뮬레이션 시간">
-            <span>{Math.floor(simulation.elapsedDays).toLocaleString('ko-KR')}</span>
+            <span>{Math.floor(displayElapsedDays).toLocaleString('ko-KR')}</span>
             <small>일 경과</small>
           </div>
         </div>

@@ -1,9 +1,13 @@
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
 describe('App', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('renders the simulator controls and Korean orientation copy', () => {
     render(<App />)
 
@@ -93,4 +97,48 @@ describe('App', () => {
     expect(screen.getAllByText('목성').length).toBeGreaterThan(0)
     expect(screen.getByText(/얼음 표면 아래/)).toBeInTheDocument()
   })
+
+  it('throttles mission time display updates while playback continues', () => {
+    vi.useFakeTimers()
+    render(<App />)
+
+    fireEvent.change(screen.getByLabelText('시뮬레이션 속도'), {
+      target: { value: '100' },
+    })
+
+    expect(getMissionDayCount()).toBe(0)
+
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+
+    expect(getMissionDayCount()).toBe(0)
+
+    act(() => {
+      vi.advanceTimersByTime(200)
+    })
+
+    const displayedDays = getMissionDayCount()
+
+    expect(displayedDays).toBeGreaterThanOrEqual(50)
+
+    fireEvent.click(screen.getByRole('button', { name: '일시정지' }))
+
+    act(() => {
+      vi.advanceTimersByTime(1_000)
+    })
+
+    expect(getMissionDayCount()).toBe(displayedDays)
+
+    fireEvent.click(screen.getByRole('button', { name: '리셋' }))
+
+    expect(getMissionDayCount()).toBe(0)
+  })
 })
+
+function getMissionDayCount() {
+  const missionTime = screen.getByLabelText('현재 시뮬레이션 시간')
+  const dayText = missionTime.querySelector('span')?.textContent ?? '0'
+
+  return Number(dayText.replaceAll(',', ''))
+}
