@@ -191,6 +191,7 @@ function App() {
             <p>행성이나 왼쪽 목록을 선택하면 카메라가 이동하고 실제 수치를 보여줍니다.</p>
           </div>
         )}
+        <TextureCredit />
       </aside>
     </main>
   )
@@ -247,6 +248,20 @@ function PlanetDetails({ planet }: { planet: PlanetDatum }) {
         </div>
       </dl>
     </div>
+  )
+}
+
+function TextureCredit() {
+  return (
+    <p className="texture-credit">
+      <a
+        href="https://space.jpl.nasa.gov/tmaps/"
+        rel="noreferrer"
+        target="_blank"
+      >
+        텍스처: NASA/JPL
+      </a>
+    </p>
   )
 }
 

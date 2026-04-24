@@ -17,6 +17,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '일시정지' })).toBeInTheDocument()
     expect(screen.getByLabelText('시뮬레이션 속도')).toBeInTheDocument()
     expect(screen.getByText('행성을 선택하세요')).toBeInTheDocument()
+    expect(screen.getByText('텍스처: NASA/JPL')).toBeInTheDocument()
   })
 
   it('opens a concise usage guide for public demo visitors', async () => {
