@@ -1,9 +1,13 @@
 import zlib from 'node:zlib'
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 test('renders an interactive solar system canvas', async ({ page }) => {
+  await delayFirstTexture(page)
   await page.goto('/3d/')
 
+  await expect(page.getByTestId('scene-loading-overlay')).toBeVisible()
+  await expect(page.getByText('3D 장면 준비 중')).toBeVisible()
+  await waitForSceneReady(page)
   await expect(page.getByRole('heading', { name: '태양계 관측실' })).toBeVisible()
   await expect(page.getByText('공개 데모')).toBeVisible()
   await expect(page.getByRole('button', { name: '도움말 열기' })).toBeVisible()
@@ -50,6 +54,7 @@ test('renders an interactive solar system canvas', async ({ page }) => {
 
 test('collapses and restores the left control panel', async ({ page }) => {
   await page.goto('/3d/')
+  await waitForSceneReady(page)
 
   await page.getByRole('button', { name: '제어 패널 접기' }).click()
 
@@ -66,6 +71,7 @@ test('collapses and restores the left control panel', async ({ page }) => {
 
 test('selects a planet from the controls on mobile and desktop', async ({ page }) => {
   await page.goto('/3d/')
+  await waitForSceneReady(page)
 
   await page.getByRole('button', { name: '토성 선택' }).click()
 
@@ -75,6 +81,7 @@ test('selects a planet from the controls on mobile and desktop', async ({ page }
 
 test('selects the Sun from the shortcut list', async ({ page }) => {
   await page.goto('/3d/')
+  await waitForSceneReady(page)
 
   await page.getByRole('button', { name: '태양 선택' }).click()
 
@@ -86,6 +93,7 @@ test('selects the Sun from the shortcut list', async ({ page }) => {
 
 test('selects representative moons from the shortcut list', async ({ page }) => {
   await page.goto('/3d/')
+  await waitForSceneReady(page)
 
   await page.getByRole('button', { name: '타이탄 선택' }).click()
 
@@ -109,6 +117,7 @@ test('keeps wheel zoom instead of snapping the camera back', async ({ page }) =>
 
   for (const deltaY of [-1_600, 1_600]) {
     await page.goto('/3d/')
+    await waitForSceneReady(page)
     await page.getByRole('button', { name: '태양 선택' }).click()
 
     const canvas = page.locator('canvas')
@@ -139,6 +148,64 @@ test('keeps wheel zoom instead of snapping the camera back', async ({ page }) =>
 
   expect(persistentZoom).toBeTruthy()
 })
+
+test('keeps the mobile loading status clear of main UI panels', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await delayFirstTexture(page)
+  await page.goto('/3d/')
+
+  const overlay = page.getByTestId('scene-loading-overlay')
+  await expect(overlay).toBeVisible()
+
+  const overlayBox = await overlay.boundingBox()
+  const controlBox = await page.locator('.control-panel').boundingBox()
+  const infoBox = await page.locator('.info-panel').boundingBox()
+
+  expect(boxesOverlap(overlayBox, controlBox)).toBe(false)
+  expect(boxesOverlap(overlayBox, infoBox)).toBe(false)
+
+  await waitForSceneReady(page)
+})
+
+async function delayFirstTexture(page: Page) {
+  let delayed = false
+
+  await page.route('**/textures/**/*.webp', async (route) => {
+    if (!delayed) {
+      delayed = true
+      await new Promise((resolve) => setTimeout(resolve, 350))
+    }
+
+    await route.continue()
+  })
+}
+
+async function waitForSceneReady(page: Page) {
+  await expect(page.getByTestId('scene-error-overlay')).toBeHidden({
+    timeout: 10_000,
+  })
+  await expect(page.getByTestId('scene-loading-overlay')).toBeHidden({
+    timeout: 15_000,
+  })
+}
+
+function boxesOverlap(
+  first: { x: number; y: number; width: number; height: number } | null,
+  second: { x: number; y: number; width: number; height: number } | null,
+) {
+  expect(first).not.toBeNull()
+  expect(second).not.toBeNull()
+
+  const a = first!
+  const b = second!
+
+  return (
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
+  )
+}
 
 function samplePng(buffer: Buffer) {
   const png = parsePng(buffer)

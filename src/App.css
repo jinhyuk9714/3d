@@ -26,6 +26,85 @@
   background: #02040a;
 }
 
+.scene-status-overlay {
+  bottom: 28px;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-50%);
+  width: min(360px, calc(100vw - 48px));
+  z-index: 6;
+}
+
+.scene-status-overlay--error {
+  pointer-events: auto;
+}
+
+.scene-status-panel {
+  background: rgba(4, 9, 19, 0.78);
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  box-shadow: 0 18px 64px rgba(0, 0, 0, 0.34);
+  color: #edf7ff;
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.scene-status-row {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.scene-status-title {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.scene-status-copy {
+  color: #b8c8d9;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.scene-status-row strong {
+  color: #7dd3fc;
+  font-size: 13px;
+}
+
+.scene-progress-track {
+  background: rgba(255, 255, 255, 0.08);
+  height: 4px;
+  overflow: hidden;
+}
+
+.scene-progress-track span {
+  background: #7dd3fc;
+  display: block;
+  height: 100%;
+  transition: width 180ms ease;
+}
+
+.scene-status-action {
+  background: #7dd3fc;
+  border-radius: 6px;
+  color: #03111d;
+  font-size: 13px;
+  font-weight: 800;
+  min-height: 34px;
+  padding: 0 12px;
+  width: fit-content;
+}
+
+.scene-status-action:hover,
+.scene-status-action:focus-visible {
+  background: #b9edff;
+  outline: none;
+}
+
 .topbar {
   align-items: flex-start;
   display: flex;
@@ -463,6 +542,11 @@ button.scene-label {
     right: 18px;
     top: 106px;
     width: auto;
+  }
+
+  .scene-status-overlay {
+    bottom: calc(32svh + 28px);
+    width: min(320px, calc(100vw - 36px));
   }
 
   .observatory-shell.is-guide-open .control-panel:not(.is-collapsed) {

@@ -17,6 +17,11 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '일시정지' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '제어 패널 접기' })).toBeInTheDocument()
     expect(screen.getByText('1일/초')).toBeInTheDocument()
+    expect(screen.getByText('3D 장면 준비 중')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '3D 장면 로딩률' })).toHaveAttribute(
+      'aria-valuenow',
+      '0',
+    )
     expect(screen.getByLabelText('시뮬레이션 속도')).toHaveValue('1')
     expect(screen.getByLabelText('시뮬레이션 속도')).toHaveAttribute('min', '1')
     expect(screen.getByLabelText('시뮬레이션 속도')).toHaveAttribute('step', '1')

@@ -1,9 +1,20 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { useProgress } from '@react-three/drei'
+import {
+  Component,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
+import type { ReactNode } from 'react'
 import './App.css'
 import { MOONS } from './data/moons'
 import type { MoonDatum, MoonId } from './data/moons'
 import { PLANETS } from './data/planets'
 import type { PlanetDatum, PlanetId, SolarBodyId } from './data/planets'
+import { SceneStatusOverlay } from './SceneStatusOverlay'
 
 type SimulationState = {
   isPlaying: boolean
@@ -11,6 +22,8 @@ type SimulationState = {
   selectedBodyId: SolarBodyId | null
   elapsedDays: number
 }
+
+type WebGLSupportState = 'supported' | 'unsupported'
 
 const DEFAULT_SIMULATION: SimulationState = {
   isPlaying: true,
@@ -35,11 +48,68 @@ const SolarSystemScene = lazy(async () => {
   return { default: module.SolarSystemScene }
 })
 
+type SceneErrorBoundaryProps = {
+  children: ReactNode
+  fallback: ReactNode
+  onError: () => void
+}
+
+type SceneErrorBoundaryState = {
+  hasError: boolean
+}
+
+class SceneErrorBoundary extends Component<
+  SceneErrorBoundaryProps,
+  SceneErrorBoundaryState
+> {
+  state = { hasError: false }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch() {
+    this.props.onError()
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback
+    }
+
+    return this.props.children
+  }
+}
+
+function detectWebGLSupport() {
+  if (typeof document === 'undefined') {
+    return false
+  }
+
+  try {
+    const canvas = document.createElement('canvas')
+
+    return Boolean(
+      canvas.getContext('webgl2') ??
+        canvas.getContext('webgl') ??
+        canvas.getContext('experimental-webgl'),
+    )
+  } catch {
+    return false
+  }
+}
+
 function App() {
   const [simulation, setSimulation] =
     useState<SimulationState>(DEFAULT_SIMULATION)
   const [isGuideOpen, setIsGuideOpen] = useState(false)
   const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false)
+  const [webGLSupport] = useState<WebGLSupportState>(
+    isTestMode || detectWebGLSupport() ? 'supported' : 'unsupported',
+  )
+  const [isSceneReady, setIsSceneReady] = useState(false)
+  const [hasSceneLoadError, setHasSceneLoadError] = useState(false)
+  const { active: isLoadingAssets, errors: loadingErrors, progress } = useProgress()
   const selectedPlanet = useMemo(
     () =>
       PLANETS.find((planet) => planet.id === simulation.selectedBodyId) ??
@@ -95,6 +165,33 @@ function App() {
   const resetSimulation = () => {
     setSimulation((current) => ({ ...current, elapsedDays: 0 }))
   }
+  const handleSceneReady = useCallback(() => {
+    setIsSceneReady(true)
+  }, [])
+  const handleSceneLoadError = useCallback(() => {
+    setHasSceneLoadError(true)
+  }, [])
+  const handleReload = useCallback(() => {
+    window.location.reload()
+  }, [])
+  const hasSceneError =
+    webGLSupport === 'unsupported' ||
+    hasSceneLoadError ||
+    loadingErrors.length > 0
+  const isSceneLoading =
+    !hasSceneError &&
+    (isTestMode || isLoadingAssets || !isSceneReady)
+  const sceneErrorMessage =
+    webGLSupport === 'unsupported'
+      ? '현재 브라우저에서 WebGL을 사용할 수 없습니다.'
+      : '텍스처 또는 3D 리소스 로딩에 실패했습니다.'
+  const canvasFallback = (
+    <div
+      aria-label="3D 태양계 캔버스"
+      className="simulator-canvas simulator-canvas--test"
+      data-testid="solar-canvas"
+    />
+  )
   const shellClassName = [
     'observatory-shell',
     isGuideOpen ? 'is-guide-open' : '',
@@ -106,36 +203,39 @@ function App() {
   return (
     <main className={shellClassName}>
       <section className="scene-stage" aria-label="태양계 3D 시뮬레이션">
-        {isTestMode ? (
-          <div
-            aria-label="3D 태양계 캔버스"
-            className="simulator-canvas simulator-canvas--test"
-            data-testid="solar-canvas"
-          />
+        {isTestMode || webGLSupport !== 'supported' ? (
+          canvasFallback
         ) : (
-          <Suspense
-            fallback={
-              <div
-                aria-label="3D 태양계 캔버스"
-                className="simulator-canvas simulator-canvas--test"
-                data-testid="solar-canvas"
-              />
-            }
+          <SceneErrorBoundary
+            fallback={canvasFallback}
+            onError={handleSceneLoadError}
           >
-            <SolarSystemScene
-              elapsedDays={simulation.elapsedDays}
-              onSelectBody={(bodyId) =>
-                setSimulation((current) => ({
-                  ...current,
-                  selectedBodyId: bodyId,
-                }))
-              }
-              moons={MOONS}
-              planets={PLANETS}
-              selectedBodyId={simulation.selectedBodyId}
-            />
-          </Suspense>
+            <Suspense fallback={canvasFallback}>
+              <SolarSystemScene
+                elapsedDays={simulation.elapsedDays}
+                onSceneReady={handleSceneReady}
+                onSelectBody={(bodyId) =>
+                  setSimulation((current) => ({
+                    ...current,
+                    selectedBodyId: bodyId,
+                  }))
+                }
+                moons={MOONS}
+                planets={PLANETS}
+                selectedBodyId={simulation.selectedBodyId}
+              />
+            </Suspense>
+          </SceneErrorBoundary>
         )}
+        {hasSceneError ? (
+          <SceneStatusOverlay
+            message={sceneErrorMessage}
+            onReload={handleReload}
+            status="error"
+          />
+        ) : isSceneLoading ? (
+          <SceneStatusOverlay progress={progress} status="loading" />
+        ) : null}
         <div className="scene-vignette" aria-hidden="true" />
       </section>
 

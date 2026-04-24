@@ -1,6 +1,6 @@
 import { Html, OrbitControls, Stars, useTexture } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useMemo, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { Vector3Tuple } from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
@@ -28,6 +28,24 @@ type SolarSystemSceneProps = {
   elapsedDays: number
   selectedBodyId: SolarBodyId | null
   onSelectBody: (bodyId: SolarBodyId) => void
+  onSceneReady?: () => void
+}
+
+type SceneQuality = {
+  dpr: [number, number]
+  isCompact: boolean
+  starCount: number
+  starFactor: number
+  orbitSegments: number
+  moonOrbitSegments: number
+  sunSegments: number
+  sunHaloSegments: number
+  planetSegments: number
+  moonSegments: number
+  atmosphereSegments: number
+  saturnRingSegments: number
+  selectionHaloSegments: number
+  showPlanetLabels: boolean
 }
 
 const PLANET_PHASES: Record<PlanetId, number> = {
@@ -57,6 +75,84 @@ const preserveDrawingBuffer =
 const SUN_DISPLAY_RADIUS = 3.2
 const SUN_ROTATION_PERIOD_DAYS = 27
 const DEFAULT_CAMERA_POSITION = [0, 30, 52] satisfies Vector3Tuple
+const DESKTOP_SCENE_QUALITY: SceneQuality = {
+  dpr: [1, 2],
+  isCompact: false,
+  starCount: 2_400,
+  starFactor: 4,
+  orbitSegments: 192,
+  moonOrbitSegments: 128,
+  sunSegments: 96,
+  sunHaloSegments: 72,
+  planetSegments: 48,
+  moonSegments: 36,
+  atmosphereSegments: 48,
+  saturnRingSegments: 160,
+  selectionHaloSegments: 96,
+  showPlanetLabels: true,
+}
+const COMPACT_SCENE_QUALITY: SceneQuality = {
+  dpr: [1, 1.35],
+  isCompact: true,
+  starCount: 1_150,
+  starFactor: 3.1,
+  orbitSegments: 128,
+  moonOrbitSegments: 88,
+  sunSegments: 72,
+  sunHaloSegments: 52,
+  planetSegments: 34,
+  moonSegments: 24,
+  atmosphereSegments: 30,
+  saturnRingSegments: 104,
+  selectionHaloSegments: 64,
+  showPlanetLabels: false,
+}
+
+function useSceneQuality() {
+  const [sceneQuality, setSceneQuality] = useState(getPreferredSceneQuality)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) {
+      return
+    }
+
+    const mediaQuery = window.matchMedia('(max-width: 700px), (pointer: coarse)')
+    const updateSceneQuality = () => {
+      setSceneQuality(mediaQuery.matches ? COMPACT_SCENE_QUALITY : DESKTOP_SCENE_QUALITY)
+    }
+
+    updateSceneQuality()
+    mediaQuery.addEventListener('change', updateSceneQuality)
+
+    return () => {
+      mediaQuery.removeEventListener('change', updateSceneQuality)
+    }
+  }, [])
+
+  return sceneQuality
+}
+
+function getPreferredSceneQuality() {
+  if (typeof window === 'undefined' || !window.matchMedia) {
+    return DESKTOP_SCENE_QUALITY
+  }
+
+  return window.matchMedia('(max-width: 700px), (pointer: coarse)').matches
+    ? COMPACT_SCENE_QUALITY
+    : DESKTOP_SCENE_QUALITY
+}
+
+function SceneReadyNotifier({
+  onSceneReady,
+}: {
+  onSceneReady?: () => void
+}) {
+  useEffect(() => {
+    onSceneReady?.()
+  }, [onSceneReady])
+
+  return null
+}
 
 export function SolarSystemScene({
   planets,
@@ -64,7 +160,9 @@ export function SolarSystemScene({
   elapsedDays,
   selectedBodyId,
   onSelectBody,
+  onSceneReady,
 }: SolarSystemSceneProps) {
+  const sceneQuality = useSceneQuality()
   const selectedPlanet =
     selectedBodyId === 'sun'
       ? null
@@ -95,7 +193,7 @@ export function SolarSystemScene({
     >
       <Canvas
         camera={{ position: DEFAULT_CAMERA_POSITION, fov: 48, near: 0.1, far: 220 }}
-        dpr={[1, 2]}
+        dpr={sceneQuality.dpr}
         gl={{
           alpha: false,
           antialias: true,
@@ -107,35 +205,39 @@ export function SolarSystemScene({
         <fog attach="fog" args={['#02040a', 52, 118]} />
         <ambientLight intensity={0.34} />
         <pointLight color="#fff3ce" intensity={4.3} position={[0, 0, 0]} />
-        <Stars
-          radius={90}
-          depth={42}
-          count={2_400}
-          factor={4}
-          saturation={0}
-          fade
-          speed={0.18}
-        />
-        <SolarSystem
-          elapsedDays={elapsedDays}
-          moons={moons}
-          onSelectBody={onSelectBody}
-          planets={planets}
-          selectedBodyId={selectedBodyId}
-        />
-        <CameraFocus
-          focusKey={selectedBodyId ?? 'default'}
-          selectedPosition={selectedPosition}
-          selectedRadius={
-            selectedBodyId === 'sun'
-              ? SUN_DISPLAY_RADIUS
-              : selectedPlanet
-                ? getPlanetDisplayRadius(selectedPlanet.diameterKm)
-                : selectedMoon
-                  ? getMoonDisplayRadius(selectedMoon.diameterKm)
-                  : null
-          }
-        />
+        <Suspense fallback={null}>
+          <Stars
+            radius={90}
+            depth={42}
+            count={sceneQuality.starCount}
+            factor={sceneQuality.starFactor}
+            saturation={0}
+            fade
+            speed={0.18}
+          />
+          <SolarSystem
+            elapsedDays={elapsedDays}
+            moons={moons}
+            onSelectBody={onSelectBody}
+            planets={planets}
+            sceneQuality={sceneQuality}
+            selectedBodyId={selectedBodyId}
+          />
+          <CameraFocus
+            focusKey={selectedBodyId ?? 'default'}
+            selectedPosition={selectedPosition}
+            selectedRadius={
+              selectedBodyId === 'sun'
+                ? SUN_DISPLAY_RADIUS
+                : selectedPlanet
+                  ? getPlanetDisplayRadius(selectedPlanet.diameterKm)
+                  : selectedMoon
+                    ? getMoonDisplayRadius(selectedMoon.diameterKm)
+                    : null
+            }
+          />
+          <SceneReadyNotifier onSceneReady={onSceneReady} />
+        </Suspense>
       </Canvas>
     </div>
   )
@@ -147,23 +249,31 @@ function SolarSystem({
   elapsedDays,
   selectedBodyId,
   onSelectBody,
-}: SolarSystemSceneProps) {
+  sceneQuality,
+}: Omit<SolarSystemSceneProps, 'onSceneReady'> & {
+  sceneQuality: SceneQuality
+}) {
   return (
     <group>
       <Sun
         elapsedDays={elapsedDays}
         isSelected={selectedBodyId === 'sun'}
         onSelectBody={onSelectBody}
+        sceneQuality={sceneQuality}
       />
       {planets.map((planet) => (
         <group key={planet.id}>
-          <OrbitRing radius={getScaledOrbitRadius(planet.distanceAu)} />
+          <OrbitRing
+            radius={getScaledOrbitRadius(planet.distanceAu)}
+            segments={sceneQuality.orbitSegments}
+          />
           <PlanetBody
             elapsedDays={elapsedDays}
             isSelected={planet.id === selectedBodyId}
             moons={moons.filter((moon) => moon.parentPlanetId === planet.id)}
             onSelectBody={onSelectBody}
             planet={planet}
+            sceneQuality={sceneQuality}
             selectedBodyId={selectedBodyId}
           />
         </group>
@@ -176,10 +286,12 @@ function Sun({
   elapsedDays,
   isSelected,
   onSelectBody,
+  sceneQuality,
 }: {
   elapsedDays: number
   isSelected: boolean
   onSelectBody: (bodyId: SolarBodyId) => void
+  sceneQuality: SceneQuality
 }) {
   const surfaceTexture = usePlanetTexture(SUN_VISUAL)
   const rotation = (elapsedDays / SUN_ROTATION_PERIOD_DAYS) * Math.PI * 2
@@ -194,7 +306,9 @@ function Sun({
         }}
         rotation={[0, rotation, 0]}
       >
-        <sphereGeometry args={[SUN_DISPLAY_RADIUS, 96, 96]} />
+        <sphereGeometry
+          args={[SUN_DISPLAY_RADIUS, sceneQuality.sunSegments, sceneQuality.sunSegments]}
+        />
         <meshBasicMaterial
           color={SUN_VISUAL.material.tint}
           map={surfaceTexture}
@@ -207,10 +321,17 @@ function Sun({
           selectSun()
         }}
       >
-        <sphereGeometry args={[3.85, 72, 72]} />
+        <sphereGeometry
+          args={[3.85, sceneQuality.sunHaloSegments, sceneQuality.sunHaloSegments]}
+        />
         <meshBasicMaterial color="#ff9f1c" transparent opacity={0.12} />
       </mesh>
-      {isSelected ? <SelectionHalo radius={SUN_DISPLAY_RADIUS} /> : null}
+      {isSelected ? (
+        <SelectionHalo
+          radius={SUN_DISPLAY_RADIUS}
+          segments={sceneQuality.selectionHaloSegments}
+        />
+      ) : null}
       <Html center distanceFactor={16} position={[0, 4.8, 0]}>
         <button
           className={`scene-label scene-label--sun ${
@@ -226,15 +347,21 @@ function Sun({
   )
 }
 
-function OrbitRing({ radius }: { radius: number }) {
+function OrbitRing({
+  radius,
+  segments,
+}: {
+  radius: number
+  segments: number
+}) {
   const geometry = useMemo(() => {
     const curve = new THREE.EllipseCurve(0, 0, radius, radius)
     const points = curve
-      .getPoints(192)
+      .getPoints(segments)
       .map((point) => new THREE.Vector3(point.x, 0, point.y))
 
     return new THREE.BufferGeometry().setFromPoints(points)
-  }, [radius])
+  }, [radius, segments])
 
   return (
     <lineLoop geometry={geometry}>
@@ -249,6 +376,7 @@ function PlanetBody({
   isSelected,
   moons,
   onSelectBody,
+  sceneQuality,
   selectedBodyId,
 }: {
   planet: PlanetDatum
@@ -256,6 +384,7 @@ function PlanetBody({
   isSelected: boolean
   moons: MoonDatum[]
   onSelectBody: (bodyId: SolarBodyId) => void
+  sceneQuality: SceneQuality
   selectedBodyId: SolarBodyId | null
 }) {
   const radius = getPlanetDisplayRadius(planet.diameterKm)
@@ -280,7 +409,9 @@ function PlanetBody({
           }}
           rotation={[0, rotation, 0]}
         >
-          <sphereGeometry args={[radius, 48, 48]} />
+          <sphereGeometry
+            args={[radius, sceneQuality.planetSegments, sceneQuality.planetSegments]}
+          />
           <meshStandardMaterial
             color={visual.material.tint}
             emissive={planet.color}
@@ -295,26 +426,37 @@ function PlanetBody({
           />
         </mesh>
         {visual.atmosphere ? (
-          <AtmosphereShell atmosphere={visual.atmosphere} radius={radius} />
+          <AtmosphereShell
+            atmosphere={visual.atmosphere}
+            radius={radius}
+            segments={sceneQuality.atmosphereSegments}
+          />
         ) : null}
-        {planet.id === 'saturn' ? <SaturnRing radius={radius} /> : null}
+        {planet.id === 'saturn' ? (
+          <SaturnRing radius={radius} segments={sceneQuality.saturnRingSegments} />
+        ) : null}
         {isSelected ? <AxisTiltGuide radius={radius} /> : null}
       </group>
-      {isSelected ? <SelectionHalo radius={radius} /> : null}
-      <Html center distanceFactor={11} position={[0, radius + 0.72, 0]}>
-        <button
-          className={`scene-label ${isSelected ? 'is-active' : ''}`}
-          onClick={() => onSelectBody(planet.id)}
-          type="button"
-        >
-          {planet.nameKo}
-        </button>
-      </Html>
+      {isSelected ? (
+        <SelectionHalo radius={radius} segments={sceneQuality.selectionHaloSegments} />
+      ) : null}
+      {sceneQuality.showPlanetLabels || isSelected ? (
+        <Html center distanceFactor={11} position={[0, radius + 0.72, 0]}>
+          <button
+            className={`scene-label ${isSelected ? 'is-active' : ''}`}
+            onClick={() => onSelectBody(planet.id)}
+            type="button"
+          >
+            {planet.nameKo}
+          </button>
+        </Html>
+      ) : null}
       {moons.map((moon) => (
         <group key={moon.id}>
           <MoonOrbitRing
             parentRadius={radius}
             radius={getScaledMoonOrbitRadius(moon.orbitRadiusKm, radius)}
+            segments={sceneQuality.moonOrbitSegments}
           />
           <MoonBody
             elapsedDays={elapsedDays}
@@ -322,6 +464,7 @@ function PlanetBody({
             moon={moon}
             onSelectBody={onSelectBody}
             parentRadius={radius}
+            sceneQuality={sceneQuality}
           />
         </group>
       ))}
@@ -332,18 +475,20 @@ function PlanetBody({
 function MoonOrbitRing({
   parentRadius,
   radius,
+  segments,
 }: {
   parentRadius: number
   radius: number
+  segments: number
 }) {
   const geometry = useMemo(() => {
     const curve = new THREE.EllipseCurve(0, 0, radius, radius)
     const points = curve
-      .getPoints(128)
+      .getPoints(segments)
       .map((point) => new THREE.Vector3(point.x, 0, point.y))
 
     return new THREE.BufferGeometry().setFromPoints(points)
-  }, [radius])
+  }, [radius, segments])
 
   return (
     <lineLoop geometry={geometry}>
@@ -362,12 +507,14 @@ function MoonBody({
   isSelected,
   onSelectBody,
   parentRadius,
+  sceneQuality,
 }: {
   moon: MoonDatum
   elapsedDays: number
   isSelected: boolean
   onSelectBody: (bodyId: SolarBodyId) => void
   parentRadius: number
+  sceneQuality: SceneQuality
 }) {
   const radius = getMoonDisplayRadius(moon.diameterKm)
   const visual = MOON_VISUALS[moon.id]
@@ -392,7 +539,9 @@ function MoonBody({
         }}
         rotation={[0, rotation, 0]}
       >
-        <sphereGeometry args={[radius, 36, 36]} />
+        <sphereGeometry
+          args={[radius, sceneQuality.moonSegments, sceneQuality.moonSegments]}
+        />
         <meshStandardMaterial
           color={visual.material.tint}
           emissive={moon.color}
@@ -406,7 +555,9 @@ function MoonBody({
           roughness={visual.material.roughness}
         />
       </mesh>
-      {isSelected ? <SelectionHalo radius={radius} /> : null}
+      {isSelected ? (
+        <SelectionHalo radius={radius} segments={sceneQuality.selectionHaloSegments} />
+      ) : null}
       {isSelected ? (
         <Html center distanceFactor={10} position={[0, radius + 0.42, 0]}>
           <button
@@ -450,13 +601,15 @@ function getPublicTextureUrl(texturePath: string) {
 function AtmosphereShell({
   atmosphere,
   radius,
+  segments,
 }: {
   atmosphere: PlanetAtmosphere
   radius: number
+  segments: number
 }) {
   return (
     <mesh scale={atmosphere.scale}>
-      <sphereGeometry args={[radius, 48, 48]} />
+      <sphereGeometry args={[radius, segments, segments]} />
       <meshBasicMaterial
         blending={THREE.AdditiveBlending}
         color={atmosphere.color}
@@ -469,12 +622,18 @@ function AtmosphereShell({
   )
 }
 
-function SaturnRing({ radius }: { radius: number }) {
+function SaturnRing({
+  radius,
+  segments,
+}: {
+  radius: number
+  segments: number
+}) {
   const ringTexture = useSaturnRingTexture()
 
   return (
     <mesh rotation={[Math.PI / 2.45, 0.2, 0]}>
-      <ringGeometry args={[radius * 1.36, radius * 2.22, 160]} />
+      <ringGeometry args={[radius * 1.36, radius * 2.22, segments]} />
       <meshBasicMaterial
         color="#f3dca4"
         depthWrite={false}
@@ -528,10 +687,16 @@ function useSaturnRingTexture() {
   return texture
 }
 
-function SelectionHalo({ radius }: { radius: number }) {
+function SelectionHalo({
+  radius,
+  segments,
+}: {
+  radius: number
+  segments: number
+}) {
   return (
     <mesh rotation={[Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[radius * 1.65, radius * 1.78, 96]} />
+      <ringGeometry args={[radius * 1.65, radius * 1.78, segments]} />
       <meshBasicMaterial
         color="#7dd3fc"
         opacity={0.86}
