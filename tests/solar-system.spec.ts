@@ -137,8 +137,6 @@ test('keeps wheel zoom instead of snapping the camera back', async ({
 }, testInfo) => {
   test.skip(testInfo.project.name === 'mobile-chrome', 'wheel is desktop pointer behavior')
 
-  const results = []
-
   for (const deltaY of [-1_600, 1_600]) {
     await page.goto('/3d/')
     await waitForSceneReady(page)
@@ -151,26 +149,19 @@ test('keeps wheel zoom instead of snapping the camera back', async ({
     const box = await canvas.boundingBox()
     expect(box).not.toBeNull()
 
-    const before = countWarmPixels(await canvas.screenshot())
+    const before = await readCameraDistance(page)
     await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
     await page.mouse.wheel(0, deltaY)
     await page.waitForTimeout(400)
-    const afterWheel = countWarmPixels(await canvas.screenshot())
+    const afterWheel = await readCameraDistance(page)
     await page.waitForTimeout(1_600)
-    const afterSettled = countWarmPixels(await canvas.screenshot())
+    const afterSettled = await readCameraDistance(page)
 
-    results.push({ afterSettled, afterWheel, before })
+    expect(Math.abs(afterWheel - before)).toBeGreaterThan(0.25)
+    expect(Math.abs(afterSettled - afterWheel)).toBeLessThanOrEqual(
+      Math.max(1.5, afterWheel * 0.08),
+    )
   }
-
-  const persistentZoom = results.find(({ afterSettled, afterWheel, before }) => {
-    const changedEnough = Math.abs(afterWheel - before) > Math.max(20, before * 0.08)
-    const stayedClose =
-      Math.abs(afterSettled - afterWheel) <= Math.max(30, afterWheel * 0.22)
-
-    return changedEnough && stayedClose
-  })
-
-  expect(persistentZoom).toBeTruthy()
 })
 
 test('keeps the mobile loading status clear of main UI panels', async ({ page }) => {
@@ -226,6 +217,19 @@ async function waitForSceneReady(page: Page) {
   await expect(page.getByTestId('scene-loading-overlay')).toBeHidden({
     timeout: 15_000,
   })
+}
+
+async function readCameraDistance(page: Page) {
+  const rawDistance = await page
+    .locator('canvas')
+    .getAttribute('data-camera-distance')
+  expect(rawDistance).not.toBeNull()
+
+  const distance = Number(rawDistance)
+
+  expect(Number.isFinite(distance)).toBe(true)
+
+  return distance
 }
 
 function boxesOverlap(
@@ -309,26 +313,6 @@ function samplePng(buffer: Buffer) {
   }
 
   return { litSamples, maxLuma }
-}
-
-function countWarmPixels(buffer: Buffer) {
-  const png = parsePng(buffer)
-  let warmPixels = 0
-
-  for (let y = 0; y < png.height; y += 2) {
-    for (let x = 0; x < png.width; x += 2) {
-      const index = (y * png.width + x) * png.bytesPerPixel
-      const red = png.pixels[index]
-      const green = png.pixels[index + 1]
-      const blue = png.pixels[index + 2]
-
-      if (red > 160 && green > 80 && blue < 130 && red >= green) {
-        warmPixels += 1
-      }
-    }
-  }
-
-  return warmPixels
 }
 
 function parsePng(buffer: Buffer) {

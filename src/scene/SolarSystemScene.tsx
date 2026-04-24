@@ -959,6 +959,7 @@ function CameraFocus({
   const controlsRef = useRef<OrbitControlsImpl | null>(null)
   const hasUserAdjustedCameraRef = useRef(false)
   const previousFocusKeyRef = useRef<string | null>(null)
+  const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
   const { camera, gl } = useThree()
   const defaultTarget = useMemo(() => new THREE.Vector3(0, 0, 0), [])
   const defaultPosition = useMemo(
@@ -972,6 +973,7 @@ function CameraFocus({
 
   useEffect(() => {
     const element = gl.domElement
+    canvasElementRef.current = element
     const markUserAdjustedCamera = () => {
       hasUserAdjustedCameraRef.current = true
     }
@@ -982,6 +984,7 @@ function CameraFocus({
     return () => {
       element.removeEventListener('wheel', markUserAdjustedCamera)
       element.removeEventListener('pointerdown', markUserAdjustedCamera)
+      canvasElementRef.current = null
     }
   }, [gl])
 
@@ -1028,6 +1031,13 @@ function CameraFocus({
     }
 
     controls.update()
+
+    if (preserveDrawingBuffer) {
+      canvasElementRef.current?.setAttribute(
+        'data-camera-distance',
+        controls.getDistance().toFixed(3),
+      )
+    }
   })
 
   return (
