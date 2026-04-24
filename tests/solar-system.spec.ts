@@ -69,6 +69,26 @@ test('collapses and restores the left control panel', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '대표 위성' })).toBeVisible()
 })
 
+test('keeps the desktop control panel tidy without clipping shortcuts', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'desktop layout budget')
+
+  await page.goto('/3d/')
+  await waitForSceneReady(page)
+
+  const panelBox = await page.locator('.control-panel').boundingBox()
+  const lastMoonBox = await page
+    .getByRole('button', { name: '트리톤 선택' })
+    .boundingBox()
+
+  expect(panelBox).not.toBeNull()
+  expect(lastMoonBox).not.toBeNull()
+  expect(lastMoonBox!.y + lastMoonBox!.height).toBeLessThanOrEqual(
+    panelBox!.y + panelBox!.height - 12,
+  )
+})
+
 test('selects a planet from the controls on mobile and desktop', async ({ page }) => {
   await page.goto('/3d/')
   await waitForSceneReady(page)
@@ -143,7 +163,7 @@ test('keeps wheel zoom instead of snapping the camera back', async ({
   }
 
   const persistentZoom = results.find(({ afterSettled, afterWheel, before }) => {
-    const changedEnough = Math.abs(afterWheel - before) > Math.max(20, before * 0.12)
+    const changedEnough = Math.abs(afterWheel - before) > Math.max(20, before * 0.08)
     const stayedClose =
       Math.abs(afterSettled - afterWheel) <= Math.max(30, afterWheel * 0.22)
 

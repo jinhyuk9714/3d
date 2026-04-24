@@ -226,19 +226,32 @@
 }
 
 .control-panel {
-  bottom: 24px;
+  align-content: start;
+  bottom: auto;
   display: grid;
-  gap: 14px;
+  gap: 12px;
   left: 24px;
+  max-height: calc(100svh - 124px);
   overflow: auto;
-  padding: 18px;
-  top: 116px;
+  padding: 14px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  top: 100px;
   transition:
     background 180ms ease,
     border-color 180ms ease,
     box-shadow 180ms ease,
     transform 180ms ease;
-  width: min(340px, calc(100vw - 48px));
+  width: min(320px, calc(100vw - 48px));
+}
+
+.control-panel::-webkit-scrollbar {
+  width: 7px;
+}
+
+.control-panel::-webkit-scrollbar-thumb {
+  background: rgba(125, 211, 252, 0.24);
+  border-radius: 999px;
 }
 
 .control-panel.is-collapsed {
@@ -262,8 +275,9 @@
 }
 
 .control-panel-content {
+  align-content: start;
   display: grid;
-  gap: 20px;
+  gap: 14px;
 }
 
 .panel-kicker {
@@ -306,13 +320,18 @@
 
 .panel-section {
   display: grid;
-  gap: 14px;
+  gap: 10px;
+}
+
+.panel-section + .panel-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.075);
+  padding-top: 12px;
 }
 
 .panel-section h2,
 .info-panel h2 {
   color: #ffffff;
-  font-size: 18px;
+  font-size: 15px;
   letter-spacing: 0;
   line-height: 1.15;
   margin: 0;
@@ -320,8 +339,8 @@
 
 .control-row {
   display: grid;
-  gap: 10px;
-  grid-template-columns: 1fr 0.75fr;
+  gap: 8px;
+  grid-template-columns: 1fr 0.82fr;
 }
 
 button {
@@ -333,10 +352,10 @@ button {
 .primary-action,
 .secondary-action {
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
-  min-height: 40px;
-  padding: 0 14px;
+  min-height: 36px;
+  padding: 0 12px;
 }
 
 .primary-action {
@@ -353,7 +372,7 @@ button {
   align-items: center;
   color: #b9c6d6;
   display: flex;
-  font-size: 13px;
+  font-size: 12px;
   justify-content: space-between;
 }
 
@@ -368,21 +387,22 @@ input[type='range'] {
 
 .planet-list {
   display: grid;
-  gap: 8px;
+  gap: 5px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .planet-button {
   align-items: center;
-  background: rgba(255, 255, 255, 0.065);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 5px;
   color: #f4f7fb;
   display: grid;
-  gap: 1px 8px;
-  grid-template-columns: 10px 1fr;
-  min-height: 44px;
-  padding: 8px 10px;
+  gap: 0 7px;
+  grid-template-columns: 8px 1fr;
+  line-height: 1.1;
+  min-height: 28px;
+  padding: 4px 8px;
   text-align: left;
   transition:
     background 160ms ease,
@@ -402,7 +422,8 @@ input[type='range'] {
 
 .planet-button small {
   color: #8ea0b4;
-  font-size: 11px;
+  display: none;
+  font-size: 10px;
   grid-column: 2;
 }
 
@@ -417,9 +438,8 @@ input[type='range'] {
 
 .planet-swatch {
   border-radius: 999px;
-  grid-row: span 2;
-  height: 10px;
-  width: 10px;
+  height: 8px;
+  width: 8px;
 }
 
 .empty-state,
@@ -545,7 +565,7 @@ button.scene-label {
   }
 
   .scene-status-overlay {
-    bottom: calc(32svh + 28px);
+    bottom: calc(32svh - 14px);
     width: min(320px, calc(100vw - 36px));
   }
 
@@ -568,9 +588,9 @@ button.scene-label {
   .control-panel {
     bottom: auto;
     left: 18px;
-    max-height: 40svh;
+    max-height: 44svh;
     overflow: auto;
-    padding: 14px;
+    padding: 12px;
     right: 18px;
     top: 126px;
     width: auto;
@@ -587,15 +607,15 @@ button.scene-label {
 
   .planet-list {
     display: grid;
-    gap: 8px;
+    gap: 6px;
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .planet-button {
-    gap: 2px 6px;
+    gap: 1px 6px;
     grid-template-columns: 8px 1fr;
-    min-height: 48px;
-    padding: 7px;
+    min-height: 42px;
+    padding: 6px;
   }
 
   .planet-button span:not(.planet-swatch) {
