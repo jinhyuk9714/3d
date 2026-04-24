@@ -56,6 +56,51 @@
   margin: 0;
 }
 
+.topbar-meta {
+  align-items: flex-end;
+  display: grid;
+  gap: 12px;
+  justify-items: end;
+}
+
+.demo-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.demo-badge,
+.help-toggle {
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  border-radius: 999px;
+  min-height: 30px;
+}
+
+.demo-badge {
+  align-items: center;
+  background: rgba(125, 211, 252, 0.12);
+  color: #c7eeff;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 0 12px;
+}
+
+.help-toggle {
+  background: rgba(255, 255, 255, 0.08);
+  color: #eef7ff;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 0 12px;
+}
+
+.help-toggle:hover,
+.help-toggle:focus-visible {
+  background: rgba(125, 211, 252, 0.2);
+  outline: none;
+}
+
 .mission-time {
   align-items: flex-end;
   display: flex;
@@ -77,12 +122,28 @@
 }
 
 .control-panel,
-.info-panel {
+.info-panel,
+.help-panel {
   background: rgba(4, 9, 19, 0.74);
   border: 1px solid rgba(125, 211, 252, 0.17);
   box-shadow: 0 20px 80px rgba(0, 0, 0, 0.32);
   position: absolute;
   z-index: 5;
+}
+
+.help-panel {
+  color: #c8d7e8;
+  display: grid;
+  font-size: 13px;
+  gap: 8px;
+  left: 24px;
+  padding: 16px;
+  top: 142px;
+  width: min(320px, calc(100vw - 48px));
+}
+
+.help-panel p {
+  margin: 0;
 }
 
 .control-panel {
@@ -296,10 +357,32 @@ button.scene-label {
     font-size: 20px;
   }
 
+  .topbar-meta {
+    gap: 8px;
+  }
+
+  .demo-badge,
+  .help-toggle {
+    min-height: 28px;
+    padding: 0 9px;
+  }
+
+  .help-panel {
+    left: 18px;
+    right: 18px;
+    top: 106px;
+    width: auto;
+  }
+
+  .observatory-shell.is-guide-open .control-panel {
+    max-height: 30svh;
+    top: 228px;
+  }
+
   .info-panel {
     bottom: 24px;
     left: 18px;
-    max-height: 34svh;
+    max-height: 32svh;
     overflow: auto;
     padding: 16px;
     right: auto;
@@ -310,20 +393,37 @@ button.scene-label {
   .control-panel {
     bottom: auto;
     left: 18px;
+    max-height: 40svh;
+    overflow: auto;
     padding: 14px;
     right: 18px;
-    top: 92px;
+    top: 126px;
     width: auto;
   }
 
   .planet-list {
-    display: flex;
+    display: grid;
     gap: 8px;
-    overflow-x: auto;
-    padding-bottom: 2px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .planet-button {
-    flex: 0 0 112px;
+    gap: 2px 6px;
+    grid-template-columns: 8px 1fr;
+    min-height: 48px;
+    padding: 7px;
+  }
+
+  .planet-button span:not(.planet-swatch) {
+    font-size: 13px;
+  }
+
+  .planet-button small {
+    font-size: 10px;
+  }
+
+  .planet-swatch {
+    height: 8px;
+    width: 8px;
   }
 }

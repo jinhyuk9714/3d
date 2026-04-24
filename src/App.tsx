@@ -27,6 +27,7 @@ const SolarSystemScene = lazy(async () => {
 function App() {
   const [simulation, setSimulation] =
     useState<SimulationState>(DEFAULT_SIMULATION)
+  const [isGuideOpen, setIsGuideOpen] = useState(false)
   const selectedPlanet = useMemo(
     () =>
       PLANETS.find((planet) => planet.id === simulation.selectedPlanetId) ??
@@ -72,7 +73,7 @@ function App() {
   }
 
   return (
-    <main className="observatory-shell">
+    <main className={`observatory-shell ${isGuideOpen ? 'is-guide-open' : ''}`}>
       <section className="scene-stage" aria-label="태양계 3D 시뮬레이션">
         {isTestMode ? (
           <div
@@ -106,11 +107,38 @@ function App() {
           <p className="eyebrow">Solar System Explorer</p>
           <h1>태양계 관측실</h1>
         </div>
-        <div className="mission-time" aria-label="현재 시뮬레이션 시간">
-          <span>{Math.floor(simulation.elapsedDays).toLocaleString('ko-KR')}</span>
-          <small>일 경과</small>
+        <div className="topbar-meta">
+          <div className="demo-actions">
+            <span className="demo-badge">공개 데모</span>
+            <button
+              aria-controls="demo-guide"
+              aria-expanded={isGuideOpen}
+              aria-label={isGuideOpen ? '도움말 닫기' : '도움말 열기'}
+              className="help-toggle"
+              onClick={() => setIsGuideOpen((isOpen) => !isOpen)}
+              type="button"
+            >
+              {isGuideOpen ? '닫기' : '도움말'}
+            </button>
+          </div>
+          <div className="mission-time" aria-label="현재 시뮬레이션 시간">
+            <span>{Math.floor(simulation.elapsedDays).toLocaleString('ko-KR')}</span>
+            <small>일 경과</small>
+          </div>
         </div>
       </header>
+
+      {isGuideOpen ? (
+        <section
+          aria-label="사용 도움말"
+          className="help-panel"
+          id="demo-guide"
+        >
+          <p>마우스로 회전하고 휠로 확대하세요.</p>
+          <p>행성 또는 목록을 선택하면 카메라가 이동합니다.</p>
+          <p>속도 슬라이더로 공전 시간을 빠르게 훑을 수 있습니다.</p>
+        </section>
+      ) : null}
 
       <aside className="control-panel" aria-label="시뮬레이션 제어">
         <div className="panel-section">

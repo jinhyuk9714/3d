@@ -1,6 +1,6 @@
 import { Html, OrbitControls, Stars } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { Vector3Tuple } from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
@@ -28,6 +28,9 @@ const PLANET_PHASES: Record<PlanetId, number> = {
   uranus: 4.8,
   neptune: 5.6,
 }
+
+const preserveDrawingBuffer =
+  import.meta.env.VITE_PRESERVE_DRAWING_BUFFER === 'true'
 
 export function SolarSystemScene({
   planets,
@@ -57,13 +60,13 @@ export function SolarSystemScene({
         gl={{
           antialias: true,
           powerPreference: 'high-performance',
-          preserveDrawingBuffer: true,
+          preserveDrawingBuffer,
         }}
       >
         <color attach="background" args={['#02040a']} />
         <fog attach="fog" args={['#02040a', 52, 118]} />
-        <ambientLight intensity={0.28} />
-        <pointLight color="#fff3ce" intensity={3.5} position={[0, 0, 0]} />
+        <ambientLight intensity={0.34} />
+        <pointLight color="#fff3ce" intensity={4.3} position={[0, 0, 0]} />
         <Stars
           radius={90}
           depth={42}
@@ -146,7 +149,7 @@ function OrbitRing({ radius }: { radius: number }) {
 
   return (
     <lineLoop geometry={geometry}>
-      <lineBasicMaterial color="#7891b3" transparent opacity={0.22} />
+      <lineBasicMaterial color="#8fb3d9" transparent opacity={0.28} />
     </lineLoop>
   )
 }
@@ -163,6 +166,7 @@ function PlanetBody({
   onSelectPlanet: (planetId: PlanetId) => void
 }) {
   const radius = getPlanetDisplayRadius(planet.diameterKm)
+  const surfaceTexture = usePlanetTexture(planet)
   const position = getPlanetPosition(
     planet.distanceAu,
     planet.orbitPeriodDays,
@@ -182,11 +186,12 @@ function PlanetBody({
       >
         <sphereGeometry args={[radius, 48, 48]} />
         <meshStandardMaterial
-          color={planet.color}
+          color="#ffffff"
           emissive={planet.color}
           emissiveIntensity={isSelected ? 0.24 : 0.08}
+          map={surfaceTexture}
           metalness={0.05}
-          roughness={0.72}
+          roughness={0.78}
         />
       </mesh>
       {planet.id === 'saturn' ? <SaturnRing radius={radius} /> : null}
@@ -202,6 +207,83 @@ function PlanetBody({
       </Html>
     </group>
   )
+}
+
+function usePlanetTexture(planet: PlanetDatum) {
+  const texture = useMemo(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 256
+    canvas.height = 128
+
+    const context = canvas.getContext('2d')
+    if (!context) {
+      return null
+    }
+
+    paintPlanetSurface(context, planet)
+
+    const canvasTexture = new THREE.CanvasTexture(canvas)
+    canvasTexture.colorSpace = THREE.SRGBColorSpace
+    canvasTexture.wrapS = THREE.RepeatWrapping
+    canvasTexture.wrapT = THREE.ClampToEdgeWrapping
+    canvasTexture.anisotropy = 4
+
+    return canvasTexture
+  }, [planet])
+
+  useEffect(() => {
+    return () => texture?.dispose()
+  }, [texture])
+
+  return texture
+}
+
+function paintPlanetSurface(
+  context: CanvasRenderingContext2D,
+  planet: PlanetDatum,
+) {
+  const { width, height } = context.canvas
+  const base = new THREE.Color(planet.color)
+  const dark = base.clone().multiplyScalar(0.58).getStyle()
+  const light = base.clone().lerp(new THREE.Color('#ffffff'), 0.34).getStyle()
+
+  const gradient = context.createLinearGradient(0, 0, width, height)
+  gradient.addColorStop(0, light)
+  gradient.addColorStop(0.5, planet.color)
+  gradient.addColorStop(1, dark)
+  context.fillStyle = gradient
+  context.fillRect(0, 0, width, height)
+
+  if (planet.id === 'jupiter' || planet.id === 'saturn') {
+    for (let y = 8; y < height; y += 13) {
+      context.fillStyle =
+        y % 26 === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(47,31,18,0.18)'
+      context.fillRect(0, y, width, 5)
+    }
+  } else if (planet.id === 'earth') {
+    context.fillStyle = 'rgba(32, 128, 76, 0.72)'
+    context.beginPath()
+    context.ellipse(78, 48, 34, 16, -0.28, 0, Math.PI * 2)
+    context.ellipse(168, 74, 44, 18, 0.34, 0, Math.PI * 2)
+    context.fill()
+    context.fillStyle = 'rgba(255, 255, 255, 0.5)'
+    context.fillRect(0, 16, width, 6)
+    context.fillRect(0, 104, width, 6)
+  } else {
+    const seed = planet.id
+      .split('')
+      .reduce((total, char) => total + char.charCodeAt(0), 0)
+    for (let index = 0; index < 80; index += 1) {
+      const x = (Math.sin(seed * (index + 1)) * 10_000) % width
+      const y = (Math.cos(seed * (index + 3)) * 10_000) % height
+      const size = 1.5 + ((seed + index) % 5)
+      context.fillStyle =
+        index % 2 === 0 ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)'
+      context.beginPath()
+      context.arc(Math.abs(x), Math.abs(y), size, 0, Math.PI * 2)
+      context.fill()
+    }
+  }
 }
 
 function SaturnRing({ radius }: { radius: number }) {
@@ -224,7 +306,7 @@ function SelectionHalo({ radius }: { radius: number }) {
       <ringGeometry args={[radius * 1.65, radius * 1.78, 96]} />
       <meshBasicMaterial
         color="#7dd3fc"
-        opacity={0.78}
+        opacity={0.86}
         side={THREE.DoubleSide}
         transparent
       />
