@@ -8,6 +8,8 @@ export type PlanetId =
   | 'uranus'
   | 'neptune'
 
+export type SolarBodyId = 'sun' | PlanetId
+
 export type PlanetDatum = {
   id: PlanetId
   nameKo: string

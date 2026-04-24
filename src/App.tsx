@@ -1,20 +1,29 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { PLANETS } from './data/planets'
-import type { PlanetDatum, PlanetId } from './data/planets'
+import type { PlanetDatum, PlanetId, SolarBodyId } from './data/planets'
 
 type SimulationState = {
   isPlaying: boolean
   speedDaysPerSecond: number
-  selectedPlanetId: PlanetId | null
+  selectedBodyId: SolarBodyId | null
   elapsedDays: number
 }
 
 const DEFAULT_SIMULATION: SimulationState = {
   isPlaying: true,
-  speedDaysPerSecond: 40,
-  selectedPlanetId: null,
+  speedDaysPerSecond: 1,
+  selectedBodyId: null,
   elapsedDays: 0,
+}
+
+const SUN_DETAILS = {
+  nameKo: '태양',
+  nameEn: 'Sun',
+  diameterKm: 1_392_700,
+  rotationPeriodDays: 27,
+  descriptionKo:
+    '태양계의 중심에 있는 항성입니다. 태양의 중력이 행성들을 붙잡아 공전 궤도를 만들고, 빛과 열이 지구 환경의 에너지원이 됩니다.',
 }
 
 const isTestMode = import.meta.env.MODE === 'test'
@@ -30,9 +39,9 @@ function App() {
   const [isGuideOpen, setIsGuideOpen] = useState(false)
   const selectedPlanet = useMemo(
     () =>
-      PLANETS.find((planet) => planet.id === simulation.selectedPlanetId) ??
+      PLANETS.find((planet) => planet.id === simulation.selectedBodyId) ??
       null,
-    [simulation.selectedPlanetId],
+    [simulation.selectedBodyId],
   )
 
   useEffect(() => {
@@ -57,7 +66,11 @@ function App() {
   }, [simulation.isPlaying])
 
   const selectPlanet = (planetId: PlanetId) => {
-    setSimulation((current) => ({ ...current, selectedPlanetId: planetId }))
+    setSimulation((current) => ({ ...current, selectedBodyId: planetId }))
+  }
+
+  const selectSun = () => {
+    setSimulation((current) => ({ ...current, selectedBodyId: 'sun' }))
   }
 
   const setSpeed = (speedDaysPerSecond: number) => {
@@ -93,9 +106,14 @@ function App() {
           >
             <SolarSystemScene
               elapsedDays={simulation.elapsedDays}
-              onSelectPlanet={selectPlanet}
+              onSelectBody={(bodyId) =>
+                setSimulation((current) => ({
+                  ...current,
+                  selectedBodyId: bodyId,
+                }))
+              }
               planets={PLANETS}
-              selectedPlanetId={simulation.selectedPlanetId}
+              selectedBodyId={simulation.selectedBodyId}
             />
           </Suspense>
         )}
@@ -159,9 +177,9 @@ function App() {
             aria-label="시뮬레이션 속도"
             id="simulation-speed"
             max="220"
-            min="5"
+            min="1"
             onChange={(event) => setSpeed(Number(event.currentTarget.value))}
-            step="5"
+            step="1"
             type="range"
             value={simulation.speedDaysPerSecond}
           />
@@ -170,9 +188,13 @@ function App() {
         <div className="panel-section">
           <h2>행성 바로가기</h2>
           <div className="planet-list">
+            <SunButton
+              isSelected={simulation.selectedBodyId === 'sun'}
+              onSelectSun={selectSun}
+            />
             {PLANETS.map((planet) => (
               <PlanetButton
-                isSelected={planet.id === simulation.selectedPlanetId}
+                isSelected={planet.id === simulation.selectedBodyId}
                 key={planet.id}
                 onSelectPlanet={selectPlanet}
                 planet={planet}
@@ -183,7 +205,9 @@ function App() {
       </aside>
 
       <aside className="info-panel" aria-live="polite">
-        {selectedPlanet ? (
+        {simulation.selectedBodyId === 'sun' ? (
+          <SunDetails />
+        ) : selectedPlanet ? (
           <PlanetDetails planet={selectedPlanet} />
         ) : (
           <div className="empty-state">
@@ -194,6 +218,30 @@ function App() {
         <TextureCredit />
       </aside>
     </main>
+  )
+}
+
+function SunButton({
+  isSelected,
+  onSelectSun,
+}: {
+  isSelected: boolean
+  onSelectSun: () => void
+}) {
+  return (
+    <button
+      aria-label="태양 선택"
+      aria-pressed={isSelected}
+      className={`planet-button planet-button--sun ${
+        isSelected ? 'is-selected' : ''
+      }`}
+      onClick={onSelectSun}
+      type="button"
+    >
+      <span className="planet-swatch" />
+      <span>태양</span>
+      <small>중심</small>
+    </button>
   )
 }
 
@@ -218,6 +266,36 @@ function PlanetButton({
       <span>{planet.nameKo}</span>
       <small>{planet.distanceAu} AU</small>
     </button>
+  )
+}
+
+function SunDetails() {
+  return (
+    <div className="planet-details">
+      <p className="eyebrow">Selected Star</p>
+      <h2>{SUN_DETAILS.nameKo}</h2>
+      <p className="latin-name">{SUN_DETAILS.nameEn}</p>
+      <p className="planet-summary">{SUN_DETAILS.descriptionKo}</p>
+
+      <dl className="metric-list">
+        <div>
+          <dt>태양계 위치</dt>
+          <dd>중심</dd>
+        </div>
+        <div>
+          <dt>지름</dt>
+          <dd>{SUN_DETAILS.diameterKm.toLocaleString('ko-KR')} km</dd>
+        </div>
+        <div>
+          <dt>표면 분류</dt>
+          <dd>항성</dd>
+        </div>
+        <div>
+          <dt>자전 주기</dt>
+          <dd>약 {SUN_DETAILS.rotationPeriodDays}일</dd>
+        </div>
+      </dl>
+    </div>
   )
 }
 

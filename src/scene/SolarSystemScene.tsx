@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { Vector3Tuple } from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
-import type { PlanetDatum, PlanetId } from '../data/planets'
+import type { PlanetDatum, PlanetId, SolarBodyId } from '../data/planets'
 import { PLANET_VISUALS } from '../data/planetVisuals'
 import type { PlanetAtmosphere, PlanetVisual } from '../data/planetVisuals'
 import {
@@ -16,8 +16,8 @@ import {
 type SolarSystemSceneProps = {
   planets: PlanetDatum[]
   elapsedDays: number
-  selectedPlanetId: PlanetId | null
-  onSelectPlanet: (planetId: PlanetId) => void
+  selectedBodyId: SolarBodyId | null
+  onSelectBody: (bodyId: SolarBodyId) => void
 }
 
 const PLANET_PHASES: Record<PlanetId, number> = {
@@ -33,22 +33,29 @@ const PLANET_PHASES: Record<PlanetId, number> = {
 
 const preserveDrawingBuffer =
   import.meta.env.VITE_PRESERVE_DRAWING_BUFFER === 'true'
+const SUN_DISPLAY_RADIUS = 3.2
 
 export function SolarSystemScene({
   planets,
   elapsedDays,
-  selectedPlanetId,
-  onSelectPlanet,
+  selectedBodyId,
+  onSelectBody,
 }: SolarSystemSceneProps) {
-  const selectedPlanet = planets.find((planet) => planet.id === selectedPlanetId)
-  const selectedPosition = selectedPlanet
-    ? getPlanetPosition(
-        selectedPlanet.distanceAu,
-        selectedPlanet.orbitPeriodDays,
-        elapsedDays,
-        PLANET_PHASES[selectedPlanet.id],
-      )
-    : null
+  const selectedPlanet =
+    selectedBodyId === 'sun'
+      ? null
+      : planets.find((planet) => planet.id === selectedBodyId) ?? null
+  const selectedPosition =
+    selectedBodyId === 'sun'
+      ? ([0, 0, 0] satisfies Vector3Tuple)
+      : selectedPlanet
+        ? getPlanetPosition(
+            selectedPlanet.distanceAu,
+            selectedPlanet.orbitPeriodDays,
+            elapsedDays,
+            PLANET_PHASES[selectedPlanet.id],
+          )
+        : null
 
   return (
     <div
@@ -80,16 +87,18 @@ export function SolarSystemScene({
         />
         <SolarSystem
           elapsedDays={elapsedDays}
-          onSelectPlanet={onSelectPlanet}
+          onSelectBody={onSelectBody}
           planets={planets}
-          selectedPlanetId={selectedPlanetId}
+          selectedBodyId={selectedBodyId}
         />
         <CameraFocus
           selectedPosition={selectedPosition}
           selectedRadius={
-            selectedPlanet
-              ? getPlanetDisplayRadius(selectedPlanet.diameterKm)
-              : null
+            selectedBodyId === 'sun'
+              ? SUN_DISPLAY_RADIUS
+              : selectedPlanet
+                ? getPlanetDisplayRadius(selectedPlanet.diameterKm)
+                : null
           }
         />
       </Canvas>
@@ -100,19 +109,22 @@ export function SolarSystemScene({
 function SolarSystem({
   planets,
   elapsedDays,
-  selectedPlanetId,
-  onSelectPlanet,
+  selectedBodyId,
+  onSelectBody,
 }: SolarSystemSceneProps) {
   return (
     <group>
-      <Sun />
+      <Sun
+        isSelected={selectedBodyId === 'sun'}
+        onSelectBody={onSelectBody}
+      />
       {planets.map((planet) => (
         <group key={planet.id}>
           <OrbitRing radius={getScaledOrbitRadius(planet.distanceAu)} />
           <PlanetBody
             elapsedDays={elapsedDays}
-            isSelected={planet.id === selectedPlanetId}
-            onSelectPlanet={onSelectPlanet}
+            isSelected={planet.id === selectedBodyId}
+            onSelectBody={onSelectBody}
             planet={planet}
           />
         </group>
@@ -121,19 +133,46 @@ function SolarSystem({
   )
 }
 
-function Sun() {
+function Sun({
+  isSelected,
+  onSelectBody,
+}: {
+  isSelected: boolean
+  onSelectBody: (bodyId: SolarBodyId) => void
+}) {
+  const selectSun = () => onSelectBody('sun')
+
   return (
     <group>
-      <mesh>
-        <sphereGeometry args={[3.2, 72, 72]} />
+      <mesh
+        onClick={(event) => {
+          event.stopPropagation()
+          selectSun()
+        }}
+      >
+        <sphereGeometry args={[SUN_DISPLAY_RADIUS, 72, 72]} />
         <meshBasicMaterial color="#ffd166" />
       </mesh>
-      <mesh>
+      <mesh
+        onClick={(event) => {
+          event.stopPropagation()
+          selectSun()
+        }}
+      >
         <sphereGeometry args={[3.85, 72, 72]} />
         <meshBasicMaterial color="#ff9f1c" transparent opacity={0.12} />
       </mesh>
+      {isSelected ? <SelectionHalo radius={SUN_DISPLAY_RADIUS} /> : null}
       <Html center distanceFactor={16} position={[0, 4.8, 0]}>
-        <span className="scene-label scene-label--sun">태양</span>
+        <button
+          className={`scene-label scene-label--sun ${
+            isSelected ? 'is-active' : ''
+          }`}
+          onClick={selectSun}
+          type="button"
+        >
+          태양
+        </button>
       </Html>
     </group>
   )
@@ -160,12 +199,12 @@ function PlanetBody({
   planet,
   elapsedDays,
   isSelected,
-  onSelectPlanet,
+  onSelectBody,
 }: {
   planet: PlanetDatum
   elapsedDays: number
   isSelected: boolean
-  onSelectPlanet: (planetId: PlanetId) => void
+  onSelectBody: (bodyId: SolarBodyId) => void
 }) {
   const radius = getPlanetDisplayRadius(planet.diameterKm)
   const visual = PLANET_VISUALS[planet.id]
@@ -183,7 +222,7 @@ function PlanetBody({
       <mesh
         onClick={(event) => {
           event.stopPropagation()
-          onSelectPlanet(planet.id)
+          onSelectBody(planet.id)
         }}
         rotation={[0, rotation, 0]}
       >
@@ -209,7 +248,7 @@ function PlanetBody({
       <Html center distanceFactor={11} position={[0, radius + 0.72, 0]}>
         <button
           className={`scene-label ${isSelected ? 'is-active' : ''}`}
-          onClick={() => onSelectPlanet(planet.id)}
+          onClick={() => onSelectBody(planet.id)}
           type="button"
         >
           {planet.nameKo}

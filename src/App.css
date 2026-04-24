@@ -264,6 +264,11 @@ input[type='range'] {
   grid-column: 2;
 }
 
+.planet-button--sun .planet-swatch {
+  background: #ffd166;
+  box-shadow: 0 0 12px rgba(255, 209, 102, 0.7);
+}
+
 .planet-swatch {
   border-radius: 999px;
   grid-row: span 2;
