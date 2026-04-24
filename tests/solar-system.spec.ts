@@ -9,6 +9,7 @@ test('renders an interactive solar system canvas', async ({ page }) => {
   await expect(page.getByRole('button', { name: '도움말 열기' })).toBeVisible()
   await expect(page.getByRole('link', { name: '텍스처: NASA/JPL/LRO' })).toBeVisible()
   await expect(page.getByTestId('solar-canvas')).toBeVisible()
+  await expect(page.getByRole('button', { name: '제어 패널 접기' })).toBeVisible()
   await expect(page.getByText('1일/초')).toBeVisible()
   await expect(page.getByRole('button', { name: '태양 선택' })).toBeVisible()
   await expect(page.getByRole('button', { name: '목성 선택' })).toBeVisible()
@@ -45,6 +46,22 @@ test('renders an interactive solar system canvas', async ({ page }) => {
 
   expect(canvasPixels.litSamples).toBeGreaterThan(8)
   expect(canvasPixels.maxLuma).toBeGreaterThan(60)
+})
+
+test('collapses and restores the left control panel', async ({ page }) => {
+  await page.goto('/3d/')
+
+  await page.getByRole('button', { name: '제어 패널 접기' }).click()
+
+  await expect(page.getByRole('button', { name: '제어 패널 열기' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '목성 선택' })).toBeHidden()
+  await expect(page.getByRole('heading', { name: '대표 위성' })).toBeHidden()
+
+  await page.getByRole('button', { name: '제어 패널 열기' }).click()
+
+  await expect(page.getByRole('button', { name: '제어 패널 접기' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '목성 선택' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '대표 위성' })).toBeVisible()
 })
 
 test('selects a planet from the controls on mobile and desktop', async ({ page }) => {

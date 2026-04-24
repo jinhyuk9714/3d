@@ -149,12 +149,73 @@
 .control-panel {
   bottom: 24px;
   display: grid;
-  gap: 20px;
+  gap: 14px;
   left: 24px;
   overflow: auto;
   padding: 18px;
   top: 116px;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
   width: min(340px, calc(100vw - 48px));
+}
+
+.control-panel.is-collapsed {
+  background: transparent;
+  border-color: transparent;
+  bottom: auto;
+  box-shadow: none;
+  display: block;
+  overflow: visible;
+  padding: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: auto;
+}
+
+.control-panel-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.control-panel-content {
+  display: grid;
+  gap: 20px;
+}
+
+.panel-kicker {
+  color: #7dd3fc;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.panel-collapse-button {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 999px;
+  color: #eaf6ff;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 30px;
+  padding: 0 12px;
+}
+
+.panel-collapse-button:hover,
+.panel-collapse-button:focus-visible {
+  background: rgba(125, 211, 252, 0.18);
+  border-color: rgba(125, 211, 252, 0.5);
+  outline: none;
+}
+
+.panel-collapse-button--open {
+  background: rgba(4, 9, 19, 0.82);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.32);
+  min-height: 38px;
 }
 
 .info-panel {
@@ -404,7 +465,7 @@ button.scene-label {
     width: auto;
   }
 
-  .observatory-shell.is-guide-open .control-panel {
+  .observatory-shell.is-guide-open .control-panel:not(.is-collapsed) {
     max-height: 30svh;
     top: 228px;
   }
@@ -428,6 +489,15 @@ button.scene-label {
     padding: 14px;
     right: 18px;
     top: 126px;
+    width: auto;
+  }
+
+  .control-panel.is-collapsed {
+    left: 18px;
+    max-height: none;
+    right: auto;
+    top: 126px;
+    transform: none;
     width: auto;
   }
 

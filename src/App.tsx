@@ -39,6 +39,7 @@ function App() {
   const [simulation, setSimulation] =
     useState<SimulationState>(DEFAULT_SIMULATION)
   const [isGuideOpen, setIsGuideOpen] = useState(false)
+  const [isControlPanelCollapsed, setIsControlPanelCollapsed] = useState(false)
   const selectedPlanet = useMemo(
     () =>
       PLANETS.find((planet) => planet.id === simulation.selectedBodyId) ??
@@ -94,9 +95,16 @@ function App() {
   const resetSimulation = () => {
     setSimulation((current) => ({ ...current, elapsedDays: 0 }))
   }
+  const shellClassName = [
+    'observatory-shell',
+    isGuideOpen ? 'is-guide-open' : '',
+    isControlPanelCollapsed ? 'is-control-panel-collapsed' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
-    <main className={`observatory-shell ${isGuideOpen ? 'is-guide-open' : ''}`}>
+    <main className={shellClassName}>
       <section className="scene-stage" aria-label="태양계 3D 시뮬레이션">
         {isTestMode ? (
           <div
@@ -169,65 +177,108 @@ function App() {
         </section>
       ) : null}
 
-      <aside className="control-panel" aria-label="시뮬레이션 제어">
-        <div className="panel-section">
-          <div className="control-row">
-            <button className="primary-action" onClick={togglePlayback} type="button">
-              {simulation.isPlaying ? '일시정지' : '재생'}
-            </button>
-            <button className="secondary-action" onClick={resetSimulation} type="button">
-              리셋
-            </button>
-          </div>
+      <aside
+        aria-label="시뮬레이션 제어"
+        className={`control-panel ${
+          isControlPanelCollapsed ? 'is-collapsed' : ''
+        }`}
+      >
+        {isControlPanelCollapsed ? (
+          <button
+            aria-expanded="false"
+            aria-label="제어 패널 열기"
+            className="panel-collapse-button panel-collapse-button--open"
+            onClick={() => setIsControlPanelCollapsed(false)}
+            type="button"
+          >
+            제어 열기
+          </button>
+        ) : (
+          <>
+            <div className="control-panel-toolbar">
+              <span className="panel-kicker">제어</span>
+              <button
+                aria-controls="simulation-controls"
+                aria-expanded="true"
+                aria-label="제어 패널 접기"
+                className="panel-collapse-button"
+                onClick={() => setIsControlPanelCollapsed(true)}
+                type="button"
+              >
+                접기
+              </button>
+            </div>
 
-          <label className="speed-control" htmlFor="simulation-speed">
-            <span>시뮬레이션 속도</span>
-            <strong>{simulation.speedDaysPerSecond}일/초</strong>
-          </label>
-          <input
-            aria-label="시뮬레이션 속도"
-            id="simulation-speed"
-            max="220"
-            min="1"
-            onChange={(event) => setSpeed(Number(event.currentTarget.value))}
-            step="1"
-            type="range"
-            value={simulation.speedDaysPerSecond}
-          />
-        </div>
+            <div className="control-panel-content" id="simulation-controls">
+              <div className="panel-section">
+                <div className="control-row">
+                  <button
+                    className="primary-action"
+                    onClick={togglePlayback}
+                    type="button"
+                  >
+                    {simulation.isPlaying ? '일시정지' : '재생'}
+                  </button>
+                  <button
+                    className="secondary-action"
+                    onClick={resetSimulation}
+                    type="button"
+                  >
+                    리셋
+                  </button>
+                </div>
 
-        <div className="panel-section">
-          <h2>행성 바로가기</h2>
-          <div className="planet-list">
-            <SunButton
-              isSelected={simulation.selectedBodyId === 'sun'}
-              onSelectSun={selectSun}
-            />
-            {PLANETS.map((planet) => (
-              <PlanetButton
-                isSelected={planet.id === simulation.selectedBodyId}
-                key={planet.id}
-                onSelectPlanet={selectPlanet}
-                planet={planet}
-              />
-            ))}
-          </div>
-        </div>
+                <label className="speed-control" htmlFor="simulation-speed">
+                  <span>시뮬레이션 속도</span>
+                  <strong>{simulation.speedDaysPerSecond}일/초</strong>
+                </label>
+                <input
+                  aria-label="시뮬레이션 속도"
+                  id="simulation-speed"
+                  max="220"
+                  min="1"
+                  onChange={(event) => setSpeed(Number(event.currentTarget.value))}
+                  step="1"
+                  type="range"
+                  value={simulation.speedDaysPerSecond}
+                />
+              </div>
 
-        <div className="panel-section">
-          <h2>대표 위성</h2>
-          <div className="planet-list moon-list">
-            {MOONS.map((moon) => (
-              <MoonButton
-                isSelected={moon.id === simulation.selectedBodyId}
-                key={moon.id}
-                moon={moon}
-                onSelectMoon={selectMoon}
-                parentPlanet={getPlanetById(moon.parentPlanetId)}
-              />
-            ))}
-          </div>
-        </div>
+              <div className="panel-section">
+                <h2>행성 바로가기</h2>
+                <div className="planet-list">
+                  <SunButton
+                    isSelected={simulation.selectedBodyId === 'sun'}
+                    onSelectSun={selectSun}
+                  />
+                  {PLANETS.map((planet) => (
+                    <PlanetButton
+                      isSelected={planet.id === simulation.selectedBodyId}
+                      key={planet.id}
+                      onSelectPlanet={selectPlanet}
+                      planet={planet}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="panel-section">
+                <h2>대표 위성</h2>
+                <div className="planet-list moon-list">
+                  {MOONS.map((moon) => (
+                    <MoonButton
+                      isSelected={moon.id === simulation.selectedBodyId}
+                      key={moon.id}
+                      moon={moon}
+                      onSelectMoon={selectMoon}
+                      parentPlanet={getPlanetById(moon.parentPlanetId)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </aside>
 
       <aside className="info-panel" aria-live="polite">

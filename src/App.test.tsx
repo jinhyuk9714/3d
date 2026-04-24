@@ -15,6 +15,7 @@ describe('App', () => {
       screen.getByRole('button', { name: '도움말 열기' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '일시정지' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '제어 패널 접기' })).toBeInTheDocument()
     expect(screen.getByText('1일/초')).toBeInTheDocument()
     expect(screen.getByLabelText('시뮬레이션 속도')).toHaveValue('1')
     expect(screen.getByLabelText('시뮬레이션 속도')).toHaveAttribute('min', '1')
@@ -36,6 +37,24 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: '도움말 닫기' }),
     ).toBeInTheDocument()
+  })
+
+  it('collapses and restores the left control panel', async () => {
+    render(<App />)
+
+    await userEvent.click(screen.getByRole('button', { name: '제어 패널 접기' }))
+
+    expect(
+      screen.getByRole('button', { name: '제어 패널 열기' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '목성 선택' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '대표 위성' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '제어 패널 열기' }))
+
+    expect(screen.getByRole('button', { name: '제어 패널 접기' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '목성 선택' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '대표 위성' })).toBeInTheDocument()
   })
 
   it('updates the information panel when a planet is selected from the list', async () => {
