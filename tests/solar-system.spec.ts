@@ -12,6 +12,7 @@ test('renders an interactive solar system canvas', async ({ page }) => {
   await expect(page.getByText('1일/초')).toBeVisible()
   await expect(page.getByRole('button', { name: '태양 선택' })).toBeVisible()
   await expect(page.getByRole('button', { name: '목성 선택' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '달 선택' })).toBeVisible()
 
   const canvas = page.locator('canvas')
 
@@ -64,6 +65,26 @@ test('selects the Sun from the shortcut list', async ({ page }) => {
     page.getByRole('heading', { exact: true, name: '태양' }),
   ).toBeVisible()
   await expect(page.getByText('Sun')).toBeVisible()
+})
+
+test('selects representative moons from the shortcut list', async ({ page }) => {
+  await page.goto('/3d/')
+
+  await page.getByRole('button', { name: '타이탄 선택' }).click()
+
+  await expect(page.getByRole('heading', { name: '타이탄' })).toBeVisible()
+  await expect(page.getByText('Titan')).toBeVisible()
+  await expect(
+    page.locator('.info-panel dd').filter({ hasText: /^토성$/ }),
+  ).toBeVisible()
+
+  await page.getByRole('button', { name: '트리톤 선택' }).click()
+
+  await expect(page.getByRole('heading', { name: '트리톤' })).toBeVisible()
+  await expect(page.getByText('Triton')).toBeVisible()
+  await expect(
+    page.locator('.info-panel dd').filter({ hasText: /^해왕성$/ }),
+  ).toBeVisible()
 })
 
 test('keeps wheel zoom instead of snapping the camera back', async ({ page }) => {

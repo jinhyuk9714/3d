@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import './App.css'
+import { MOONS } from './data/moons'
+import type { MoonDatum, MoonId } from './data/moons'
 import { PLANETS } from './data/planets'
 import type { PlanetDatum, PlanetId, SolarBodyId } from './data/planets'
 
@@ -43,6 +45,10 @@ function App() {
       null,
     [simulation.selectedBodyId],
   )
+  const selectedMoon = useMemo(
+    () => MOONS.find((moon) => moon.id === simulation.selectedBodyId) ?? null,
+    [simulation.selectedBodyId],
+  )
 
   useEffect(() => {
     if (!simulation.isPlaying) {
@@ -71,6 +77,10 @@ function App() {
 
   const selectSun = () => {
     setSimulation((current) => ({ ...current, selectedBodyId: 'sun' }))
+  }
+
+  const selectMoon = (moonId: MoonId) => {
+    setSimulation((current) => ({ ...current, selectedBodyId: moonId }))
   }
 
   const setSpeed = (speedDaysPerSecond: number) => {
@@ -112,6 +122,7 @@ function App() {
                   selectedBodyId: bodyId,
                 }))
               }
+              moons={MOONS}
               planets={PLANETS}
               selectedBodyId={simulation.selectedBodyId}
             />
@@ -153,7 +164,7 @@ function App() {
           id="demo-guide"
         >
           <p>마우스로 회전하고 휠로 확대하세요.</p>
-          <p>행성 또는 목록을 선택하면 카메라가 이동합니다.</p>
+          <p>행성, 위성 또는 목록을 선택하면 카메라가 이동합니다.</p>
           <p>속도 슬라이더로 공전 시간을 빠르게 훑을 수 있습니다.</p>
         </section>
       ) : null}
@@ -202,6 +213,21 @@ function App() {
             ))}
           </div>
         </div>
+
+        <div className="panel-section">
+          <h2>대표 위성</h2>
+          <div className="planet-list moon-list">
+            {MOONS.map((moon) => (
+              <MoonButton
+                isSelected={moon.id === simulation.selectedBodyId}
+                key={moon.id}
+                moon={moon}
+                onSelectMoon={selectMoon}
+                parentPlanet={getPlanetById(moon.parentPlanetId)}
+              />
+            ))}
+          </div>
+        </div>
       </aside>
 
       <aside className="info-panel" aria-live="polite">
@@ -209,10 +235,15 @@ function App() {
           <SunDetails />
         ) : selectedPlanet ? (
           <PlanetDetails planet={selectedPlanet} />
+        ) : selectedMoon ? (
+          <MoonDetails
+            moon={selectedMoon}
+            parentPlanet={getPlanetById(selectedMoon.parentPlanetId)}
+          />
         ) : (
           <div className="empty-state">
-            <h2>행성을 선택하세요</h2>
-            <p>행성이나 왼쪽 목록을 선택하면 카메라가 이동하고 실제 수치를 보여줍니다.</p>
+            <h2>천체를 선택하세요</h2>
+            <p>행성이나 위성을 선택하면 카메라가 이동하고 실제 수치를 보여줍니다.</p>
           </div>
         )}
         <TextureCredit />
@@ -265,6 +296,34 @@ function PlanetButton({
       <span className="planet-swatch" style={{ backgroundColor: planet.color }} />
       <span>{planet.nameKo}</span>
       <small>{planet.distanceAu} AU</small>
+    </button>
+  )
+}
+
+function MoonButton({
+  moon,
+  parentPlanet,
+  isSelected,
+  onSelectMoon,
+}: {
+  moon: MoonDatum
+  parentPlanet: PlanetDatum
+  isSelected: boolean
+  onSelectMoon: (moonId: MoonId) => void
+}) {
+  return (
+    <button
+      aria-label={`${moon.nameKo} 선택`}
+      aria-pressed={isSelected}
+      className={`planet-button planet-button--moon ${
+        isSelected ? 'is-selected' : ''
+      }`}
+      onClick={() => onSelectMoon(moon.id)}
+      type="button"
+    >
+      <span className="planet-swatch" style={{ backgroundColor: moon.color }} />
+      <span>{moon.nameKo}</span>
+      <small>{parentPlanet.nameKo}</small>
     </button>
   )
 }
@@ -324,6 +383,50 @@ function PlanetDetails({ planet }: { planet: PlanetDatum }) {
           <dt>자전 주기</dt>
           <dd>{Math.abs(planet.rotationPeriodHours).toLocaleString('ko-KR')}시간</dd>
         </div>
+        <div>
+          <dt>자전축 기울기</dt>
+          <dd>{planet.axialTiltDeg.toLocaleString('ko-KR')}도</dd>
+        </div>
+      </dl>
+    </div>
+  )
+}
+
+function MoonDetails({
+  moon,
+  parentPlanet,
+}: {
+  moon: MoonDatum
+  parentPlanet: PlanetDatum
+}) {
+  return (
+    <div className="planet-details">
+      <p className="eyebrow">Selected Moon</p>
+      <h2>{moon.nameKo}</h2>
+      <p className="latin-name">{moon.nameEn}</p>
+      <p className="planet-summary">{moon.descriptionKo}</p>
+
+      <dl className="metric-list">
+        <div>
+          <dt>부모 행성</dt>
+          <dd>{parentPlanet.nameKo}</dd>
+        </div>
+        <div>
+          <dt>지름</dt>
+          <dd>{moon.diameterKm.toLocaleString('ko-KR')} km</dd>
+        </div>
+        <div>
+          <dt>평균 거리</dt>
+          <dd>{moon.orbitRadiusKm.toLocaleString('ko-KR')} km</dd>
+        </div>
+        <div>
+          <dt>공전 주기</dt>
+          <dd>{moon.orbitPeriodDays.toLocaleString('ko-KR')}일</dd>
+        </div>
+        <div>
+          <dt>공전 방향</dt>
+          <dd>{moon.orbitDirection === -1 ? '역행' : '순행'}</dd>
+        </div>
       </dl>
     </div>
   )
@@ -341,6 +444,16 @@ function TextureCredit() {
       </a>
     </p>
   )
+}
+
+function getPlanetById(planetId: PlanetId) {
+  const planet = PLANETS.find((item) => item.id === planetId)
+
+  if (!planet) {
+    throw new Error(`Unknown planet: ${planetId}`)
+  }
+
+  return planet
 }
 
 export default App

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   getOrbitalAngle,
   getCameraPositionAfterTargetShift,
+  getMoonDisplayRadius,
+  getMoonPosition,
+  getScaledMoonOrbitRadius,
   getPlanetDisplayRadius,
   getPlanetPosition,
   getScaledOrbitRadius,
@@ -57,5 +60,44 @@ describe('orbit math', () => {
 
     expect(shiftedCamera).toEqual([12, 5, 9])
     expect(distanceAfter).toBeCloseTo(distanceBefore)
+  })
+
+  it('scales moon orbits and radii into visible positive values', () => {
+    const enceladusOrbit = getScaledMoonOrbitRadius(238_020, 2.2)
+    const callistoOrbit = getScaledMoonOrbitRadius(1_882_700, 2.2)
+
+    expect(enceladusOrbit).toBeGreaterThan(2.2)
+    expect(callistoOrbit).toBeGreaterThan(enceladusOrbit)
+    expect(callistoOrbit).toBeLessThan(10)
+    expect(getMoonDisplayRadius(504)).toBeGreaterThanOrEqual(0.16)
+    expect(getMoonDisplayRadius(5_262)).toBeGreaterThan(
+      getMoonDisplayRadius(3_475),
+    )
+  })
+
+  it('computes deterministic moon positions around a parent planet', () => {
+    const parentPosition = [12, 0, -4] as const
+    const position = getMoonPosition(
+      parentPosition,
+      421_800,
+      1.769,
+      0.5,
+      1,
+      1,
+    )
+
+    expect(position).toEqual(
+      getMoonPosition(parentPosition, 421_800, 1.769, 0.5, 1, 1),
+    )
+    expect(position[1]).toBe(0)
+    expect(position[0]).not.toBe(parentPosition[0])
+  })
+
+  it('reverses moon orbital direction for retrograde moons', () => {
+    const parentPosition = [0, 0, 0] as const
+
+    expect(getMoonPosition(parentPosition, 354_800, 5.877, 2, 0, -1)).toEqual(
+      getMoonPosition(parentPosition, 354_800, 5.877, -2, 0, 1),
+    )
   })
 })

@@ -4,18 +4,25 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { Vector3Tuple } from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
+import type { MoonDatum, MoonId } from '../data/moons'
+import { MOON_VISUALS } from '../data/moonVisuals'
+import type { MoonVisual } from '../data/moonVisuals'
 import type { PlanetDatum, PlanetId, SolarBodyId } from '../data/planets'
 import { PLANET_VISUALS } from '../data/planetVisuals'
 import type { PlanetAtmosphere, PlanetVisual } from '../data/planetVisuals'
 import {
   getCameraPositionAfterTargetShift,
+  getMoonDisplayRadius,
+  getMoonPosition,
   getPlanetDisplayRadius,
   getPlanetPosition,
   getScaledOrbitRadius,
+  getScaledMoonOrbitRadius,
 } from './orbitMath'
 
 type SolarSystemSceneProps = {
   planets: PlanetDatum[]
+  moons: MoonDatum[]
   elapsedDays: number
   selectedBodyId: SolarBodyId | null
   onSelectBody: (bodyId: SolarBodyId) => void
@@ -32,6 +39,17 @@ const PLANET_PHASES: Record<PlanetId, number> = {
   neptune: 5.6,
 }
 
+const MOON_PHASES: Record<MoonId, number> = {
+  moon: 0.2,
+  io: 0.7,
+  europa: 1.6,
+  ganymede: 2.4,
+  callisto: 3.3,
+  titan: 0.9,
+  enceladus: 2.8,
+  triton: 1.4,
+}
+
 const preserveDrawingBuffer =
   import.meta.env.VITE_PRESERVE_DRAWING_BUFFER === 'true'
 const SUN_DISPLAY_RADIUS = 3.2
@@ -39,6 +57,7 @@ const DEFAULT_CAMERA_POSITION = [0, 30, 52] satisfies Vector3Tuple
 
 export function SolarSystemScene({
   planets,
+  moons,
   elapsedDays,
   selectedBodyId,
   onSelectBody,
@@ -47,6 +66,10 @@ export function SolarSystemScene({
     selectedBodyId === 'sun'
       ? null
       : planets.find((planet) => planet.id === selectedBodyId) ?? null
+  const selectedMoon =
+    selectedBodyId === 'sun'
+      ? null
+      : moons.find((moon) => moon.id === selectedBodyId) ?? null
   const selectedPosition =
     selectedBodyId === 'sun'
       ? ([0, 0, 0] satisfies Vector3Tuple)
@@ -57,7 +80,9 @@ export function SolarSystemScene({
             elapsedDays,
             PLANET_PHASES[selectedPlanet.id],
           )
-        : null
+        : selectedMoon
+          ? getMoonWorldPosition(selectedMoon, planets, elapsedDays)
+          : null
 
   return (
     <div
@@ -89,6 +114,7 @@ export function SolarSystemScene({
         />
         <SolarSystem
           elapsedDays={elapsedDays}
+          moons={moons}
           onSelectBody={onSelectBody}
           planets={planets}
           selectedBodyId={selectedBodyId}
@@ -101,7 +127,9 @@ export function SolarSystemScene({
               ? SUN_DISPLAY_RADIUS
               : selectedPlanet
                 ? getPlanetDisplayRadius(selectedPlanet.diameterKm)
-                : null
+                : selectedMoon
+                  ? getMoonDisplayRadius(selectedMoon.diameterKm)
+                  : null
           }
         />
       </Canvas>
@@ -111,6 +139,7 @@ export function SolarSystemScene({
 
 function SolarSystem({
   planets,
+  moons,
   elapsedDays,
   selectedBodyId,
   onSelectBody,
@@ -127,8 +156,10 @@ function SolarSystem({
           <PlanetBody
             elapsedDays={elapsedDays}
             isSelected={planet.id === selectedBodyId}
+            moons={moons.filter((moon) => moon.parentPlanetId === planet.id)}
             onSelectBody={onSelectBody}
             planet={planet}
+            selectedBodyId={selectedBodyId}
           />
         </group>
       ))}
@@ -202,12 +233,16 @@ function PlanetBody({
   planet,
   elapsedDays,
   isSelected,
+  moons,
   onSelectBody,
+  selectedBodyId,
 }: {
   planet: PlanetDatum
   elapsedDays: number
   isSelected: boolean
+  moons: MoonDatum[]
   onSelectBody: (bodyId: SolarBodyId) => void
+  selectedBodyId: SolarBodyId | null
 }) {
   const radius = getPlanetDisplayRadius(planet.diameterKm)
   const visual = PLANET_VISUALS[planet.id]
@@ -219,34 +254,38 @@ function PlanetBody({
     PLANET_PHASES[planet.id],
   )
   const rotation = (elapsedDays / Math.abs(planet.rotationPeriodHours / 24)) * 0.5
+  const axialTiltRad = THREE.MathUtils.degToRad(planet.axialTiltDeg)
 
   return (
     <group position={position}>
-      <mesh
-        onClick={(event) => {
-          event.stopPropagation()
-          onSelectBody(planet.id)
-        }}
-        rotation={[0, rotation, 0]}
-      >
-        <sphereGeometry args={[radius, 48, 48]} />
-        <meshStandardMaterial
-          color={visual.material.tint}
-          emissive={planet.color}
-          emissiveIntensity={
-            isSelected
-              ? visual.material.emissiveIntensity + 0.12
-              : visual.material.emissiveIntensity
-          }
-          map={surfaceTexture}
-          metalness={visual.material.metalness}
-          roughness={visual.material.roughness}
-        />
-      </mesh>
-      {visual.atmosphere ? (
-        <AtmosphereShell atmosphere={visual.atmosphere} radius={radius} />
-      ) : null}
-      {planet.id === 'saturn' ? <SaturnRing radius={radius} /> : null}
+      <group rotation={[0, 0, axialTiltRad]}>
+        <mesh
+          onClick={(event) => {
+            event.stopPropagation()
+            onSelectBody(planet.id)
+          }}
+          rotation={[0, rotation, 0]}
+        >
+          <sphereGeometry args={[radius, 48, 48]} />
+          <meshStandardMaterial
+            color={visual.material.tint}
+            emissive={planet.color}
+            emissiveIntensity={
+              isSelected
+                ? visual.material.emissiveIntensity + 0.12
+                : visual.material.emissiveIntensity
+            }
+            map={surfaceTexture}
+            metalness={visual.material.metalness}
+            roughness={visual.material.roughness}
+          />
+        </mesh>
+        {visual.atmosphere ? (
+          <AtmosphereShell atmosphere={visual.atmosphere} radius={radius} />
+        ) : null}
+        {planet.id === 'saturn' ? <SaturnRing radius={radius} /> : null}
+        {isSelected ? <AxisTiltGuide radius={radius} /> : null}
+      </group>
       {isSelected ? <SelectionHalo radius={radius} /> : null}
       <Html center distanceFactor={11} position={[0, radius + 0.72, 0]}>
         <button
@@ -257,11 +296,119 @@ function PlanetBody({
           {planet.nameKo}
         </button>
       </Html>
+      {moons.map((moon) => (
+        <group key={moon.id}>
+          <MoonOrbitRing
+            parentRadius={radius}
+            radius={getScaledMoonOrbitRadius(moon.orbitRadiusKm, radius)}
+          />
+          <MoonBody
+            elapsedDays={elapsedDays}
+            isSelected={moon.id === selectedBodyId}
+            moon={moon}
+            onSelectBody={onSelectBody}
+            parentRadius={radius}
+          />
+        </group>
+      ))}
     </group>
   )
 }
 
-function usePlanetTexture(visual: PlanetVisual) {
+function MoonOrbitRing({
+  parentRadius,
+  radius,
+}: {
+  parentRadius: number
+  radius: number
+}) {
+  const geometry = useMemo(() => {
+    const curve = new THREE.EllipseCurve(0, 0, radius, radius)
+    const points = curve
+      .getPoints(128)
+      .map((point) => new THREE.Vector3(point.x, 0, point.y))
+
+    return new THREE.BufferGeometry().setFromPoints(points)
+  }, [radius])
+
+  return (
+    <lineLoop geometry={geometry}>
+      <lineBasicMaterial
+        color="#d8e2ef"
+        opacity={parentRadius > 1.8 ? 0.18 : 0.28}
+        transparent
+      />
+    </lineLoop>
+  )
+}
+
+function MoonBody({
+  moon,
+  elapsedDays,
+  isSelected,
+  onSelectBody,
+  parentRadius,
+}: {
+  moon: MoonDatum
+  elapsedDays: number
+  isSelected: boolean
+  onSelectBody: (bodyId: SolarBodyId) => void
+  parentRadius: number
+}) {
+  const radius = getMoonDisplayRadius(moon.diameterKm)
+  const visual = MOON_VISUALS[moon.id]
+  const surfaceTexture = usePlanetTexture(visual)
+  const position = getMoonPosition(
+    [0, 0, 0],
+    moon.orbitRadiusKm,
+    moon.orbitPeriodDays,
+    elapsedDays,
+    MOON_PHASES[moon.id],
+    moon.orbitDirection,
+    parentRadius,
+  )
+  const rotation = (elapsedDays / moon.orbitPeriodDays) * 0.42
+
+  return (
+    <group position={position}>
+      <mesh
+        onClick={(event) => {
+          event.stopPropagation()
+          onSelectBody(moon.id)
+        }}
+        rotation={[0, rotation, 0]}
+      >
+        <sphereGeometry args={[radius, 36, 36]} />
+        <meshStandardMaterial
+          color={visual.material.tint}
+          emissive={moon.color}
+          emissiveIntensity={
+            isSelected
+              ? visual.material.emissiveIntensity + 0.1
+              : visual.material.emissiveIntensity
+          }
+          map={surfaceTexture}
+          metalness={visual.material.metalness}
+          roughness={visual.material.roughness}
+        />
+      </mesh>
+      {isSelected ? <SelectionHalo radius={radius} /> : null}
+      {isSelected ? (
+        <Html center distanceFactor={10} position={[0, radius + 0.42, 0]}>
+          <button
+            className="scene-label is-active"
+            onClick={() => onSelectBody(moon.id)}
+            type="button"
+          >
+            {moon.nameKo}
+          </button>
+        </Html>
+      ) : null}
+    </group>
+  )
+}
+
+function usePlanetTexture(visual: PlanetVisual | MoonVisual) {
   const texture = useTexture(
     getPublicTextureUrl(visual.texturePath),
     (loadedTexture) => {
@@ -378,6 +525,52 @@ function SelectionHalo({ radius }: { radius: number }) {
         transparent
       />
     </mesh>
+  )
+}
+
+function AxisTiltGuide({ radius }: { radius: number }) {
+  const geometry = useMemo(
+    () =>
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, -radius * 1.6, 0),
+        new THREE.Vector3(0, radius * 1.6, 0),
+      ]),
+    [radius],
+  )
+
+  return (
+    <lineLoop geometry={geometry}>
+      <lineBasicMaterial color="#f8fafc" opacity={0.72} transparent />
+    </lineLoop>
+  )
+}
+
+function getMoonWorldPosition(
+  moon: MoonDatum,
+  planets: PlanetDatum[],
+  elapsedDays: number,
+) {
+  const parentPlanet = planets.find((planet) => planet.id === moon.parentPlanetId)
+
+  if (!parentPlanet) {
+    return null
+  }
+
+  const parentPosition = getPlanetPosition(
+    parentPlanet.distanceAu,
+    parentPlanet.orbitPeriodDays,
+    elapsedDays,
+    PLANET_PHASES[parentPlanet.id],
+  )
+
+  return getMoonPosition(
+    parentPosition,
+    moon.orbitRadiusKm,
+    moon.orbitPeriodDays,
+    elapsedDays,
+    MOON_PHASES[moon.id],
+    moon.orbitDirection,
+    getPlanetDisplayRadius(parentPlanet.diameterKm),
   )
 }
 

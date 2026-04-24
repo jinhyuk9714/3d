@@ -151,7 +151,9 @@
   display: grid;
   gap: 20px;
   left: 24px;
+  overflow: auto;
   padding: 18px;
+  top: 116px;
   width: min(340px, calc(100vw - 48px));
 }
 
@@ -267,6 +269,10 @@ input[type='range'] {
 .planet-button--sun .planet-swatch {
   background: #ffd166;
   box-shadow: 0 0 12px rgba(255, 209, 102, 0.7);
+}
+
+.planet-button--moon {
+  background: rgba(255, 255, 255, 0.045);
 }
 
 .planet-swatch {

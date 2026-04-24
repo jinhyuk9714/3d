@@ -23,6 +23,8 @@ describe('PLANETS', () => {
       expect(planet.distanceAu).toBeGreaterThan(0)
       expect(planet.orbitPeriodDays).toBeGreaterThan(0)
       expect(Math.abs(planet.rotationPeriodHours)).toBeGreaterThan(0)
+      expect(planet.axialTiltDeg).toBeGreaterThanOrEqual(0)
+      expect(planet.axialTiltDeg).toBeLessThanOrEqual(180)
       expect(planet.color).toMatch(/^#[0-9a-f]{6}$/i)
       expect(planet.descriptionKo.length).toBeGreaterThan(20)
     }
